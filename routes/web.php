@@ -27,7 +27,7 @@ Route::get('/feed.xml',          [SeoController::class, 'feed'])->name('feed');
 
 /* ─── AUTH ─────────────────────────────────────────────── */
 Route::get('/admin/login',  [LoginController::class, 'showLogin'])->name('admin.login');
-Route::post('/admin/login', [LoginController::class, 'login'])->name('admin.login.post');
+Route::post('/admin/login', [LoginController::class, 'login'])->middleware('throttle:login')->name('admin.login.post');
 Route::post('/admin/logout',[LoginController::class, 'logout'])->name('admin.logout');
 
 /* ─── ADMIN PANEL ──────────────────────────────────────── */

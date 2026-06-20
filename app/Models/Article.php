@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Str;
+use Mews\Purifier\Facades\Purifier;
 
 class Article extends Model
 {
@@ -24,6 +25,19 @@ class Article extends Model
         'published_at' => 'datetime',
     ];
 
+    /* ── Mutators ──────────────────────────────────────── */
+    /**
+     * Sanitize rich-text body on write. This is the single chokepoint for
+     * stored-XSS defense: every write path (admin controller, seeder, jobs)
+     * runs through here, and the view can safely render {!! $article->body !!}.
+     */
+    public function setBodyAttribute(?string $value): void
+    {
+        $this->attributes['body'] = $value === null || $value === ''
+            ? $value
+            : Purifier::clean($value, 'article');
+    }
+
     /* ── Relationships ─────────────────────────────────── */
     public function category() { return $this->belongsTo(Category::class); }
     public function author()   { return $this->belongsTo(User::class, 'author_id'); }
@@ -34,6 +48,19 @@ class Article extends Model
         return $q->where('status', 'published')
                  ->whereNotNull('published_at')
                  ->where('published_at', '<=', now());
+    }
+
+    /**
+     * Canonical "is this publicly visible?" check — the row-level mirror of
+     * scopePublished(). Use this for access guards and view counting so a
+     * future-scheduled post (status=published, published_at in the future)
+     * is never reachable by slug or counted.
+     */
+    public function isPublished(): bool
+    {
+        return $this->status === 'published'
+            && $this->published_at !== null
+            && $this->published_at->lessThanOrEqualTo(now());
     }
 
     public function scopeInCategory(Builder $q, string $slug): Builder

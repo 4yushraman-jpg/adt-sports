@@ -86,7 +86,11 @@
             {{ $catSlug ? ($categories->firstWhere('slug',$catSlug)?->name ?? 'Articles') : 'Latest Stories' }}
           </span>
         </div>
-        <a href="{{ route('search') }}" class="sec-hd-more">All Articles →</a>
+        @if($catSlug)
+          <a href="{{ route('category', $catSlug) }}" class="sec-hd-more">All {{ $categories->firstWhere('slug',$catSlug)?->name }} →</a>
+        @else
+          <a href="{{ route('home') }}" class="sec-hd-more">All Articles →</a>
+        @endif
       </div>
 
       {{-- Article feed --}}

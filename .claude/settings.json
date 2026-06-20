@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "PowerShell($php = \\(Get-Command php -ErrorAction SilentlyContinue\\); if \\($php\\) { $php.Source } else { \"no php in PATH\" })",
-      "PowerShell($p = \\(Get-Command php -ErrorAction SilentlyContinue\\); if \\($p\\) { php -v } else { \"still no php\" })"
+      "PowerShell($p = \\(Get-Command php -ErrorAction SilentlyContinue\\); if \\($p\\) { php -v } else { \"still no php\" })",
+      "Bash(php artisan *)",
+      "Bash(ls -la tests)",
+      "Bash(ls phpunit.xml)",
+      "Bash(git rm *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

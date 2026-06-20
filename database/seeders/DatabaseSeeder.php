@@ -12,11 +12,19 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         /* ── Admin User ─────────────────────────────────── */
+        $adminPassword = env('ADMIN_PASSWORD');
+        if (blank($adminPassword)) {
+            throw new \RuntimeException(
+                'ADMIN_PASSWORD must be set in the environment before seeding. '
+                . 'Refusing to seed an admin account with a default password.'
+            );
+        }
+
         $admin = User::firstOrCreate(
             ['email' => env('ADMIN_EMAIL', 'admin@adtsports.com')],
             [
                 'name'     => 'Aditya Trivedi',
-                'password' => Hash::make(env('ADMIN_PASSWORD', 'ADT@admin2025')),
+                'password' => Hash::make($adminPassword),
                 'role'     => 'admin',
             ]
         );
@@ -154,6 +162,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->command->info('✅ ADT Sports seeded!');
-        $this->command->info('   Login: admin@adtsports.com / ADT@admin2025');
+        $this->command->info('   Admin login: ' . env('ADMIN_EMAIL', 'admin@adtsports.com'));
+        $this->command->info('   Password: (as set in ADMIN_PASSWORD)');
     }
 }

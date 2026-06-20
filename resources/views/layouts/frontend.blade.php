@@ -57,7 +57,7 @@
     'url'         => url('/'),
     'logo'        => url('/public/uploads/logo.png'),
     'description' => $settings['site_description'] ?? "India's #1 Kabaddi media platform.",
-] + (count($seoSocials) ? ['sameAs' => $seoSocials] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
+] + (count($seoSocials) ? ['sameAs' => $seoSocials] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
 </script>
 <script type="application/ld+json">
 {!! json_encode([
@@ -70,14 +70,18 @@
         'target'      => url('/search') . '?q={search_term_string}',
         'query-input' => 'required name=search_term_string',
     ],
-], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
 </script>
 @stack('schema')
 
   <link rel="shortcut icon" href="/public/uploads/logo.png" data-inertia="favicon-shortcut">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;0,800;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{{-- Font Awesome is decorative-only — load it non-render-blocking to protect LCP --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" media="print" onload="this.media='all'" />
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" /></noscript>
   <style>
 :root{--bg:#FAF8F5;--bg2:#F3F0EB;--bg3:#EAE6DF;--surface:#FFF;--ink:#1C1917;--ink2:#44403C;--ink3:#78716C;--ink4:#A8A29E;--rule:rgba(28,25,23,.09);--rule2:rgba(28,25,23,.05);--brand:#D4420A;--brand-h:#B83808;--brand-soft:rgba(212,66,10,.09);--green:#16803C;--amber:#B45309;--serif:'Lora',Georgia,serif;--display:'Playfair Display',Georgia,serif;--sans:'Inter',system-ui,sans-serif;--nav-h:58px;--max:1180px}
 [data-theme="dark"]{--bg:#131110;--bg2:#1C1917;--bg3:#252220;--surface:#1C1917;--ink:#F5F0EB;--ink2:#C2BAB3;--ink3:#78716C;--ink4:#44403C;--rule:rgba(245,240,235,.07);--rule2:rgba(245,240,235,.04);--brand-soft:rgba(212,66,10,.13)}

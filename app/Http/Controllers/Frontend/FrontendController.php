@@ -42,7 +42,15 @@ class FrontendController extends Controller
         $article = Article::with(['category','author'])
             ->where('slug', $slug)->firstOrFail();
 
-        if ($article->status === 'published') {
+        // Only publicly-visible posts (published + past publish date) are reachable
+        // by slug; the author or an admin may preview anything else. Everyone else
+        // gets a 404 — including future-scheduled posts.
+        $viewer     = auth()->user();
+        $canPreview = $viewer && ($viewer->isAdmin() || $viewer->id === $article->author_id);
+        abort_if(! $article->isPublished() && ! $canPreview, 404);
+
+        // Count a view only for genuine public reads, never admin previews.
+        if ($article->isPublished()) {
             $article->incrementViews();
         }
 
