@@ -38,10 +38,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     // Articles
     Route::get('/articles',                  [ArticleController::class, 'index'])->name('articles.index');
     Route::get('/articles/new',              [ArticleController::class, 'create'])->name('articles.create');
+    Route::get('/articles/trash',            [ArticleController::class, 'trash'])->name('articles.trash');
     Route::post('/articles',                 [ArticleController::class, 'store'])->name('articles.store');
     Route::get('/articles/{article}/edit',   [ArticleController::class, 'edit'])->name('articles.edit');
     Route::put('/articles/{article}',        [ArticleController::class, 'update'])->name('articles.update');
     Route::delete('/articles/{article}',     [ArticleController::class, 'destroy'])->name('articles.destroy');
+    Route::put('/articles/{id}/restore',     [ArticleController::class, 'restore'])->name('articles.restore');
+    Route::delete('/articles/{id}/force',    [ArticleController::class, 'forceDestroy'])->name('articles.force');
 
     // Categories
     Route::get('/categories',                [CategoryController::class, 'index'])->name('categories.index');

@@ -163,6 +163,27 @@
     </div>
     @endif
 
+    {{-- Previous / next article navigation --}}
+    @if($prev || $next)
+    <nav class="art-prevnext" aria-label="More articles"
+         style="display:flex;gap:12px;justify-content:space-between;margin-top:36px;flex-wrap:wrap">
+      @if($prev)
+        <a href="{{ route('article', $prev->slug) }}" rel="prev"
+           style="flex:1;min-width:220px;padding:14px 16px;border:1px solid var(--line,#2a2118);border-radius:8px;color:var(--ink)">
+          <div style="font-size:11px;color:var(--ink3)">← Previous</div>
+          <div style="font-weight:600;font-size:14px">{{ Str::limit($prev->title, 60) }}</div>
+        </a>
+      @else <span></span> @endif
+      @if($next)
+        <a href="{{ route('article', $next->slug) }}" rel="next"
+           style="flex:1;min-width:220px;padding:14px 16px;border:1px solid var(--line,#2a2118);border-radius:8px;color:var(--ink);text-align:right">
+          <div style="font-size:11px;color:var(--ink3)">Next →</div>
+          <div style="font-weight:600;font-size:14px">{{ Str::limit($next->title, 60) }}</div>
+        </a>
+      @endif
+    </nav>
+    @endif
+
     {{-- Related articles --}}
     @if($related->count())
     <div class="related-section">

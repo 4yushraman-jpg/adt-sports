@@ -1,4 +1,5 @@
 @extends('layouts.frontend')
+@include('partials.pagination_seo', ['paginator' => $articles])
 @section('title', ($settings['site_name'] ?? 'ADT Sports'))
 {{-- When filtered via ?category=, consolidate to the canonical category page to avoid duplicate content --}}
 @if($catSlug && $categories->firstWhere('slug', $catSlug))

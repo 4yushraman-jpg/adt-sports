@@ -11,6 +11,8 @@
     $seoSiteName  = $settings['site_name'] ?? 'ADT Sports';
     $seoTitle     = trim($__env->yieldContent('title', $seoSiteName));
     $seoDesc      = trim($__env->yieldContent('meta_desc', $settings['site_description'] ?? "India's #1 Kabaddi media platform."));
+    // Each list view already sets a page-aware @section('canonical'); article
+    // pages set their own. Fall back to the current URL otherwise.
     $seoCanonical = trim($__env->yieldContent('canonical')) ?: url()->current();
     $seoRobots    = trim($__env->yieldContent('robots', 'index, follow'));
     $seoType      = trim($__env->yieldContent('og_type', 'website'));
@@ -86,6 +88,8 @@
 :root{--bg:#FAF8F5;--bg2:#F3F0EB;--bg3:#EAE6DF;--surface:#FFF;--ink:#1C1917;--ink2:#44403C;--ink3:#78716C;--ink4:#A8A29E;--rule:rgba(28,25,23,.09);--rule2:rgba(28,25,23,.05);--brand:#D4420A;--brand-h:#B83808;--brand-soft:rgba(212,66,10,.09);--green:#16803C;--amber:#B45309;--serif:'Lora',Georgia,serif;--display:'Playfair Display',Georgia,serif;--sans:'Inter',system-ui,sans-serif;--nav-h:58px;--max:1180px}
 [data-theme="dark"]{--bg:#131110;--bg2:#1C1917;--bg3:#252220;--surface:#1C1917;--ink:#F5F0EB;--ink2:#C2BAB3;--ink3:#78716C;--ink4:#44403C;--rule:rgba(245,240,235,.07);--rule2:rgba(245,240,235,.04);--brand-soft:rgba(212,66,10,.13)}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}
+.skip-link{position:absolute;left:-9999px;top:0;z-index:1000;background:var(--brand);color:#fff;padding:10px 16px;border-radius:0 0 6px 0;font-weight:600;text-decoration:none}
+.skip-link:focus{left:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;transition:background .25s,color .25s;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}img{display:block;max-width:100%}button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}ul{list-style:none}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -364,6 +368,7 @@ footer{background:#1c1917;color:rgba(245,240,235,.65);margin-top:60px}
 @stack('styles')
 </head>
 <body>
+<a href="#main" class="skip-link">Skip to content</a>
 <div id="readBar"></div>
 
 <div class="search-overlay" id="srchOverlay">
@@ -412,7 +417,7 @@ footer{background:#1c1917;color:rgba(245,240,235,.65);margin-top:60px}
 </div>
 
 {{-- NAV --}}
-<nav id="mainNav">
+<nav id="mainNav" aria-label="Primary">
   <div class="nav-wrap">
     <a href="{{ route('home') }}" class="logo">
       <div class="logo-img"><img src="/public/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
@@ -444,7 +449,9 @@ footer{background:#1c1917;color:rgba(245,240,235,.65);margin-top:60px}
   </div>
 </nav>
 
+<main id="main">
 @yield('content')
+</main>
 
 {{-- FOOTER --}}
 <footer>

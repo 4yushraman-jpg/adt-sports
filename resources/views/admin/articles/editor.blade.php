@@ -1,5 +1,18 @@
 @extends('layouts.admin')
 @section('title', $article ? 'Edit Article' : 'New Article')
+
+@push('styles')
+<style>
+  .field .cat-checks{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:200px;overflow-y:auto;margin-top:2px;padding-right:2px}
+  .field .cat-checks .cat-check{display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;
+    text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:500;color:var(--ink2);line-height:1.2;transition:border-color .15s,color .15s,background .15s}
+  .field .cat-checks .cat-check:hover{border-color:var(--brand);color:var(--ink)}
+  .field .cat-checks .cat-check:has(input:checked){border-color:var(--brand);background:rgba(212,66,10,.08);color:var(--ink)}
+  .field .cat-checks .cat-check input{appearance:auto;width:15px;height:15px;accent-color:var(--brand);flex:0 0 auto;margin:0;cursor:pointer}
+  .field .cat-checks .cat-check span{flex:1;min-width:0}
+</style>
+@endpush
+
 @section('content')
 
 <form action="{{ $article ? route('admin.articles.update',$article) : route('admin.articles.store') }}"
@@ -64,6 +77,7 @@
             <button type="button" class="rte-btn" onclick="insertCallout()"          title="Callout box" style="font-size:11px;width:auto;padding:0 7px">📦 Box</button>
             <div class="rte-sep"></div>
             <button type="button" class="rte-btn" onclick="insertLink()"             title="Insert link">🔗</button>
+            <button type="button" class="rte-btn" onclick="insertBodyImage()"        title="Insert image">🖼️</button>
             <button type="button" class="rte-btn" onclick="fmt('removeFormat')"      title="Clear formatting" style="font-size:11px">✕ Fmt</button>
             <div style="margin-left:auto">
               <button type="button" class="rte-btn" id="htmlModeBtn" onclick="toggleHTML()"
@@ -96,12 +110,25 @@
       {{-- Publish Settings --}}
       <div class="panel-card">
         <h4>Publish Settings</h4>
+        @if($article)
         <div class="field" style="margin-bottom:12px">
-          <label>Status</label>
-          <select name="status" id="statusSelect">
-            <option value="draft"     {{ old('status',$article?->status??'draft')=='draft'?'selected':'' }}>📝 Draft</option>
-            <option value="published" {{ old('status',$article?->status)=='published'?'selected':'' }}>✅ Published</option>
-          </select>
+          <label>Current status</label>
+          <div style="font-size:13px;font-weight:600">
+            @if($article->isScheduled())
+              🕒 Scheduled — goes live {{ $article->published_at->format('d M Y, H:i') }}
+            @elseif($article->isPublished())
+              ✅ Published
+            @else
+              📝 Draft
+            @endif
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">Use “Save Draft” or “Publish” above to change it.</div>
+        </div>
+        @endif
+        <div class="field" style="margin-bottom:12px">
+          <label>Publish date <span style="opacity:.55;font-weight:400;font-size:11px">— a future time schedules it</span></label>
+          <input type="datetime-local" name="published_at"
+                 value="{{ old('published_at', optional($article?->published_at)->format('Y-m-d\TH:i')) }}">
         </div>
         <div class="field" style="margin-bottom:14px">
           <label>Category</label>
@@ -114,6 +141,19 @@
               </option>
             @endforeach
           </select>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>Additional categories <span style="opacity:.55;font-weight:400;font-size:11px;text-transform:none;letter-spacing:0">— also list under these</span></label>
+          @php($selectedCats = old('categories', $article ? $article->categories->pluck('id')->all() : []))
+          <div class="cat-checks">
+            @foreach($categories as $cat)
+              <label class="cat-check">
+                <input type="checkbox" name="categories[]" value="{{ $cat->id }}"
+                       {{ in_array($cat->id, $selectedCats) ? 'checked' : '' }}>
+                <span>{{ $cat->name }}</span>
+              </label>
+            @endforeach
+          </div>
         </div>
         <div class="toggle-row">
           <span class="toggle-label">⭐ Featured Article</span>
@@ -244,6 +284,28 @@ let htmlMode = false;
 function fmt(cmd) { document.execCommand(cmd,false,null); document.getElementById('rteEditor').focus(); updateCount(); }
 function fmtBlock(tag) { document.execCommand('formatBlock',false,tag); document.getElementById('rteEditor').focus(); updateCount(); }
 function insertLink() { const u=prompt('Enter URL:'); if(u) document.execCommand('createLink',false,u); }
+async function insertBodyImage() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*';
+  input.onchange = async () => {
+    if (!input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    fd.append('_token', '{{ csrf_token() }}');
+    try {
+      const r = await fetch('{{ route("admin.media.upload") }}', { method:'POST', body:fd });
+      if (!r.ok) throw new Error('upload rejected');
+      const d = await r.json();
+      // Alt text is required for accessibility + SEO; default to the file name.
+      const alt = (prompt('Describe this image (alt text):', d.name || '') || '').replace(/"/g,'&quot;');
+      document.getElementById('rteEditor').focus();
+      document.execCommand('insertHTML', false,
+        '<img src="' + d.url + '" alt="' + alt + '" style="max-width:100%;border-radius:8px">');
+      updateCount();
+    } catch(e) { alert('Image upload failed: ' + e.message); }
+  };
+  input.click();
+}
 function insertCallout() {
   document.execCommand('insertHTML',false,
     '<div style="background:rgba(212,66,10,.1);border:1px solid rgba(212,66,10,.2);border-radius:6px;padding:14px 18px;margin:16px 0;">📌 Write your callout text here...</div>');
@@ -282,12 +344,7 @@ document.getElementById('artForm').addEventListener('submit', function(e) {
     ? (document.getElementById('htmlArea')||{value:''}).value
     : document.getElementById('rteEditor').innerHTML;
   document.getElementById('bodyInput').value = body;
-
-  // Sync status from which button was clicked
-  const btn = e.submitter;
-  if (btn && btn.name==='status_override') {
-    document.getElementById('statusSelect').value = btn.value;
-  }
+  // Status is carried by the clicked button's name=status_override value — no sync needed.
 });
 </script>
 @endpush

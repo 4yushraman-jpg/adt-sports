@@ -12,7 +12,7 @@ class FrontendController extends Controller
     {
         return [
             'settings'   => Setting::allAsArray(),
-            'categories' => Category::orderBy('name')->get(),
+            'categories' => Category::ordered(),
         ];
     }
 
@@ -55,11 +55,13 @@ class FrontendController extends Controller
         }
 
         $related  = $article->getRelated(3);
+        $prev     = $article->previousArticle();
+        $next     = $article->nextArticle();
         $trending = Article::with('category')->published()
             ->orderByDesc('views')->where('id','!=',$article->id)->limit(5)->get();
 
         return view('frontend.article', array_merge($this->shared(), compact(
-            'article','related','trending'
+            'article','related','prev','next','trending'
         )));
     }
 
@@ -68,7 +70,11 @@ class FrontendController extends Controller
         $category = Category::where('slug',$slug)->firstOrFail();
         $perPage  = (int) Setting::get('articles_per_page', 10);
         $articles = Article::with(['category','author'])
-            ->published()->where('category_id',$category->id)
+            ->published()
+            ->where(function ($q) use ($category) {
+                $q->where('category_id', $category->id) // primary
+                  ->orWhereHas('categories', fn ($c) => $c->where('categories.id', $category->id)); // additional
+            })
             ->latest('published_at')->paginate($perPage);
         $trending = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
 

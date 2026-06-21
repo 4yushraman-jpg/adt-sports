@@ -1,4 +1,5 @@
 @extends('layouts.frontend')
+@include('partials.pagination_seo', ['paginator' => $articles])
 @php $seoSite = $settings['site_name'] ?? 'ADT Sports'; @endphp
 @section('title', $q ? "Search: {$q} — {$seoSite}" : "Search — {$seoSite}")
 {{-- Search result pages are thin/duplicate content — keep out of the index but follow links --}}

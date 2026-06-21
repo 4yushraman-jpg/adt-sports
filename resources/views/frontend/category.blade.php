@@ -1,4 +1,5 @@
 @extends('layouts.frontend')
+@include('partials.pagination_seo', ['paginator' => $articles])
 @section('title', $category->name . ' — ' . ($settings['site_name'] ?? 'ADT Sports'))
 @section('meta_desc', $category->description ?: "Latest {$category->name} coverage on " . ($settings['site_name'] ?? 'ADT Sports'))
 {{-- Self-reference paginated pages (incl. ?page=N) so deeper pages stay indexable --}}

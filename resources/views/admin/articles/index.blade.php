@@ -4,7 +4,10 @@
 
 <div class="page-hd">
   <div><h1>All Articles</h1><div class="page-hd-sub">{{ $articles->total() }} total</div></div>
-  <a href="{{ route('admin.articles.create') }}" class="btn btn-primary">✍️ New Article</a>
+  <div style="display:flex;gap:8px;align-items:center">
+    <a href="{{ route('admin.articles.trash') }}" class="btn btn-ghost">🗑️ Trash</a>
+    <a href="{{ route('admin.articles.create') }}" class="btn btn-primary">✍️ New Article</a>
+  </div>
 </div>
 
 <div class="table-wrap">
@@ -50,7 +53,13 @@
         </td>
         <td style="font-size:12px;color:var(--ink3)">{{ $a->author?->name ?? '—' }}</td>
         <td>
-          <span class="badge badge-{{ $a->status }}">{{ $a->status }}</span>
+          @if($a->isScheduled())
+            <span class="badge badge-published" style="background:#7C3AED1a;color:#7C3AED;border-color:#7C3AED55"
+                  title="Goes live {{ $a->published_at->format('d M Y, H:i') }}">🕒 scheduled</span>
+            <div style="font-size:10px;color:var(--ink3);margin-top:3px">{{ $a->published_at->format('d M Y, H:i') }}</div>
+          @else
+            <span class="badge badge-{{ $a->status }}">{{ $a->status }}</span>
+          @endif
           @if($a->featured) <span style="font-size:12px" title="Featured">⭐</span> @endif
           @if($a->breaking) <span style="font-size:12px" title="Breaking">🔴</span> @endif
         </td>

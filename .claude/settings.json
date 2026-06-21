@@ -7,7 +7,29 @@
       "Bash(ls -la tests)",
       "Bash(ls phpunit.xml)",
       "Bash(git rm *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(vendor/bin/phpunit --filter \"test_is_published_requires_status_and_past_publish_date|test_guest_is_redirected_from_admin_dashboard\")",
+      "Bash(php -l bootstrap/app.php)",
+      "Bash(vendor/bin/phpunit --filter \"BodySanitizationTest|test_login_is_rate_limited\")",
+      "Bash(vendor/bin/phpunit --filter \"MediaUploadTest\" --testdox)",
+      "Bash(php -l app/Observers/ArticleObserver.php)",
+      "Bash(php -l app/Models/Category.php)",
+      "Bash(php -l app/Models/Setting.php)",
+      "Bash(php -l app/Console/Commands/FlushArticleViews.php)",
+      "Bash(php -l app/Http/Controllers/Admin/ArticleController.php)",
+      "Bash(php -l app/Http/Controllers/Frontend/SeoController.php)",
+      "Bash(vendor/bin/phpunit --filter SeoTest --testdox)",
+      "Bash(echo \"\\(exit $?\\)\")",
+      "Bash(vendor/bin/phpunit --filter ScheduledPublishingTest --testdox)",
+      "Bash(vendor/bin/phpunit --filter ScheduledPublishingTest)",
+      "Bash(vendor/bin/phpunit --filter TrashTest --testdox)",
+      "Bash(vendor/bin/phpunit --filter RelatedAndNavigationTest --testdox)",
+      "Bash(vendor/bin/phpunit --filter SeoAccessibilityTest --testdox)",
+      "Bash(vendor/bin/phpunit --filter \"test_admin_can_preview_a_draft\")",
+      "Bash(vendor/bin/phpunit --filter \"SeoAccessibilityTest|SeoTest\")",
+      "Bash(vendor/bin/phpunit --filter \"ArticlePublishingTest|ScheduledPublishingTest|AuthorizationTest\")",
+      "Bash(vendor/bin/phpunit --filter MultiCategoryTest --testdox)",
+      "Bash(vendor/bin/phpunit --filter \"test_editor_renders_additional_category_checkboxes|MultiCategoryTest\")"
     ]
   }
 }

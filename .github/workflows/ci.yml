@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+
+    env:
+      # Static key just for CI; the real app key lives in the deploy environment.
+      APP_KEY: base64:F39Kr4HRqnDSiis+xQByZn6X0pZDR9zSfZlbS9kd9wQ=
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: gd, pdo_sqlite, sqlite3, mbstring, dom, fileinfo, bcmath
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run test suite
+        run: vendor/bin/phpunit

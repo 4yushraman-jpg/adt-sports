@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Media;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{Auth, File, Storage};
+use Illuminate\Support\Facades\{Auth, File};
 use Illuminate\Support\Str;
 
 class MediaController extends Controller
 {
+    /** Single source of truth for where uploads live and how the disk is labelled. */
+    private const DISK  = 'public';
+    private const DIR   = 'uploads';
+
     public function index()
     {
         $media = Media::with('uploader')->latest()->paginate(40);
@@ -20,27 +24,30 @@ class MediaController extends Controller
     {
         $request->validate(['file' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:10240']);
 
-        $file     = $request->file('file');
-        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $originalName = $file->getClientOriginalName();
-        $mimeType = $file->getMimeType();
-        $size = $file->getSize();
-        $uploadDir = public_path('uploads');
+        $file = $request->file('file');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        $filename = Str::uuid() . '.' . $ext;
 
+        $uploadDir = public_path(self::DIR);
         if (! File::exists($uploadDir)) {
             File::makeDirectory($uploadDir, 0755, true);
         }
+        $destination = $uploadDir . DIRECTORY_SEPARATOR . $filename;
 
-        $file->move($uploadDir, $filename);
-        $url = '/uploads/' . $filename;
+        // Re-encode raster images through GD to strip EXIF/GPS metadata and
+        // neutralise any payload smuggled in image headers. Animated GIFs are
+        // moved as-is (GD would flatten them) — they carry no EXIF risk.
+        if ($ext === 'gif' || ! $this->reencode($file->getRealPath(), $destination, $ext)) {
+            $file->move($uploadDir, $filename);
+        }
 
         $media = Media::create([
             'filename'      => $filename,
-            'original_name' => $originalName,
-            'mimetype'      => $mimeType,
-            'size'          => $size,
-            'url'           => $url,
-            'disk'          => 'public_uploads',
+            'original_name' => $file->getClientOriginalName(),
+            'mimetype'      => $file->getMimeType(),
+            'size'          => @filesize($destination) ?: $file->getSize(),
+            'url'           => '/' . self::DIR . '/' . $filename,
+            'disk'          => self::DISK,
             'uploaded_by'   => Auth::id(),
         ]);
 
@@ -53,13 +60,46 @@ class MediaController extends Controller
 
     public function destroy(Media $media)
     {
-        if ($media->disk === 'public_uploads') {
-            File::delete(public_path('uploads/' . $media->filename));
-        } else {
-            Storage::disk('public')->delete('uploads/' . $media->filename);
+        // All uploads live under public/uploads regardless of legacy disk labels.
+        File::delete(public_path(self::DIR . '/' . $media->filename));
+        $media->delete();
+
+        return back()->with('success', 'Image deleted.');
+    }
+
+    /**
+     * Re-encode an image to its own format via GD, dropping all metadata.
+     * Returns false if GD can't handle it (caller falls back to a plain move).
+     */
+    private function reencode(string $src, string $dest, string $ext): bool
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return false;
         }
 
-        $media->delete();
-        return back()->with('success', 'Image deleted.');
+        $data = @file_get_contents($src);
+        if ($data === false) {
+            return false;
+        }
+
+        $img = @imagecreatefromstring($data);
+        if ($img === false) {
+            return false;
+        }
+
+        // Preserve transparency for formats that support it.
+        imagealphablending($img, false);
+        imagesavealpha($img, true);
+
+        $ok = match ($ext) {
+            'jpg', 'jpeg' => imagejpeg($img, $dest, 85),
+            'png'         => imagepng($img, $dest, 6),
+            'webp'        => function_exists('imagewebp') && imagewebp($img, $dest, 85),
+            default       => false,
+        };
+
+        imagedestroy($img);
+
+        return $ok;
     }
 }
