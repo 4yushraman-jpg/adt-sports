@@ -64,18 +64,18 @@ class DraftVisibilityTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_viewing_a_published_article_buffers_then_flushes_a_view(): void
+    public function test_view_beacon_buffers_then_flushes_a_view(): void
     {
         $article = Article::factory()->published()->create(['views' => 0]);
 
+        // The page itself no longer counts (so it can be cached); the beacon does.
         $this->get("/article/{$article->slug}")->assertOk();
-
-        // Buffered, not yet written to the hot row.
         $this->assertSame(0, $article->fresh()->views);
+
+        $this->get(route('article.hit', $article))->assertNoContent();
         $this->assertDatabaseHas('article_view_buffer', ['article_id' => $article->id, 'count' => 1]);
 
         $this->artisan('app:flush-article-views')->assertSuccessful();
-
         $this->assertSame(1, $article->fresh()->views);
         $this->assertDatabaseMissing('article_view_buffer', ['article_id' => $article->id]);
     }
@@ -85,19 +85,18 @@ class DraftVisibilityTest extends TestCase
         $article  = Article::factory()->published()->create(['views' => 0]);
         $original = $article->updated_at;
 
-        $this->get("/article/{$article->slug}")->assertOk();
+        $this->get(route('article.hit', $article))->assertNoContent();
         $this->artisan('app:flush-article-views')->assertSuccessful();
 
         // lastmod (used by the sitemap) must not move just because of a view.
         $this->assertEquals($original->timestamp, $article->fresh()->updated_at->timestamp);
     }
 
-    public function test_admin_preview_does_not_increment_views(): void
+    public function test_beacon_does_not_count_a_draft(): void
     {
-        $admin   = User::factory()->admin()->create();
         $article = Article::factory()->draft()->create(['views' => 0]);
 
-        $this->actingAs($admin)->get("/article/{$article->slug}")->assertOk();
+        $this->get(route('article.hit', $article))->assertNoContent();
         $this->artisan('app:flush-article-views')->assertSuccessful();
 
         $this->assertSame(0, $article->fresh()->views);

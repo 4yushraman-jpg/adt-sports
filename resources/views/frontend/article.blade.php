@@ -148,6 +148,11 @@
       {!! $article->body !!}
     </div>
 
+    @if($article->isPublished())
+    {{-- Async view-count beacon — keeps this page fully cacheable --}}
+    <script>fetch(@json(route('article.hit', $article)), {cache:'no-store'}).catch(function(){});</script>
+    @endif
+
     {{-- About the author (E-E-A-T) --}}
     @if($article->author)
     <div class="widget" style="margin-top:36px;display:flex;gap:14px;align-items:flex-start">

@@ -49,10 +49,8 @@ class FrontendController extends Controller
         $canPreview = $viewer && ($viewer->isAdmin() || $viewer->id === $article->author_id);
         abort_if(! $article->isPublished() && ! $canPreview, 404);
 
-        // Count a view only for genuine public reads, never admin previews.
-        if ($article->isPublished()) {
-            $article->incrementViews();
-        }
+        // Views are counted via an async beacon (see hit()) so this page can be
+        // fully cached. Bonus: only real browsers (JS) count, not crawlers.
 
         $related  = $article->getRelated(3);
         $prev     = $article->previousArticle();
@@ -63,6 +61,19 @@ class FrontendController extends Controller
         return view('frontend.article', array_merge($this->shared(), compact(
             'article','related','prev','next','trending'
         )));
+    }
+
+    /**
+     * Async view-count beacon. Called by JS from the (cacheable) article page so
+     * view counting is decoupled from page rendering. Returns 204 (never cached).
+     */
+    public function hit(Article $article)
+    {
+        if ($article->isPublished()) {
+            $article->incrementViews();
+        }
+
+        return response()->noContent();
     }
 
     public function category(string $slug)

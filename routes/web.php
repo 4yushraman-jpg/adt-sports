@@ -14,6 +14,7 @@ use App\Http\Controllers\Frontend\SeoController;
 /* ─── PUBLIC FRONTEND ──────────────────────────────────── */
 Route::get('/',                  [FrontendController::class, 'home'])->name('home');
 Route::get('/article/{slug}',    [FrontendController::class, 'article'])->name('article');
+Route::get('/article/{article}/hit', [FrontendController::class, 'hit'])->name('article.hit')->middleware('throttle:60,1');
 Route::get('/category/{slug}',   [FrontendController::class, 'category'])->name('category');
 Route::get('/author/{user}',     [FrontendController::class, 'author'])->name('author');
 Route::get('/tag/{tag}',         [FrontendController::class, 'tag'])->name('tag')->where('tag', '[^/]+');

@@ -3,6 +3,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Cache;
+use Spatie\ResponseCache\Facades\ResponseCache;
 
 class Category extends Model
 {
@@ -13,9 +14,16 @@ class Category extends Model
 
     protected static function booted(): void
     {
-        // The category list renders on every public page; bust the cache on any change.
-        static::saved(fn () => Cache::forget(self::CACHE_KEY));
-        static::deleted(fn () => Cache::forget(self::CACHE_KEY));
+        // The category list renders on every public page; bust both the list cache
+        // and the full-page response cache on any change.
+        static::saved(function () {
+            Cache::forget(self::CACHE_KEY);
+            ResponseCache::clear();
+        });
+        static::deleted(function () {
+            Cache::forget(self::CACHE_KEY);
+            ResponseCache::clear();
+        });
     }
 
     public function articles() { return $this->hasMany(Article::class); }

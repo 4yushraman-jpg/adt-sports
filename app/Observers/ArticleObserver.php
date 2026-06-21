@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Models\Article;
 use App\Models\Category;
 use Illuminate\Support\Facades\Cache;
+use Spatie\ResponseCache\Facades\ResponseCache;
 
 class ArticleObserver
 {
@@ -49,5 +50,8 @@ class ArticleObserver
         Cache::forget('seo.sitemap');
         Cache::forget('seo.news_sitemap');
         Cache::forget('seo.feed');
+
+        // Content changed — invalidate cached full-page responses.
+        ResponseCache::clear();
     }
 }

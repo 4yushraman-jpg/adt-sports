@@ -35,9 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_AWS_ELB,
         );
 
-        // Apply security headers (CSP, HSTS, X-Frame-Options, ...) to all web responses.
+        // Security headers stay outer so they apply to cached serves too; the
+        // full-page cache (guests only, via PublicResponseCacheProfile) sits inside.
         $middleware->web(append: [
             \App\Http\Middleware\SecurityHeaders::class,
+            \Spatie\ResponseCache\Middlewares\CacheResponse::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

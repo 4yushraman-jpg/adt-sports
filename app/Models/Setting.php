@@ -2,6 +2,7 @@
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Spatie\ResponseCache\Facades\ResponseCache;
 
 class Setting extends Model
 {
@@ -21,6 +22,7 @@ class Setting extends Model
     {
         static::updateOrCreate(['key' => $key], ['value' => $value]);
         Cache::forget(self::CACHE_KEY);
+        ResponseCache::clear(); // settings appear on every page
     }
 
     /** Cached so the per-request settings lookup doesn't hit the DB every page load. */

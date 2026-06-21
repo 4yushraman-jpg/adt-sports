@@ -36,7 +36,11 @@
       "Bash(sed -i '87,367d' resources/views/layouts/frontend.blade.php)",
       "Bash(sed -i \"86a @vite\\(['resources/css/app.css']\\)\" resources/views/layouts/frontend.blade.php)",
       "Bash(timeout 300 npm install)",
-      "Bash(timeout 180 npm run build)"
+      "Bash(timeout 180 npm run build)",
+      "Bash(timeout 200 composer require spatie/laravel-responsecache)",
+      "Bash(php -l app/Support/PublicResponseCacheProfile.php)",
+      "Bash(vendor/bin/phpunit --filter ResponseCacheTest --testdox)",
+      "Bash(npm run *)"
     ]
   }
 }
