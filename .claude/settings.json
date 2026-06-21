@@ -42,7 +42,9 @@
       "Bash(vendor/bin/phpunit --filter ResponseCacheTest --testdox)",
       "Bash(npm run *)",
       "Bash(php -l app/Http/Controllers/Admin/MediaController.php)",
-      "Bash(vendor/bin/phpunit --filter ImagePipelineTest --testdox)"
+      "Bash(vendor/bin/phpunit --filter ImagePipelineTest --testdox)",
+      "PowerShell($gh = \\(Get-Command gh -ErrorAction SilentlyContinue\\); if \\($gh\\) { gh run list --branch main --limit 2 } else { \"gh not installed\" })",
+      "Bash(vendor/bin/phpunit --filter \"ImagePipelineTest|ResponseCacheTest\")"
     ]
   }
 }

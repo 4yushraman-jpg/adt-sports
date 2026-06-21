@@ -231,6 +231,7 @@ nav.shadow{box-shadow:0 1px 18px rgba(0,0,0,.07)}
 .back-btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:var(--ink3);margin-bottom:24px;cursor:pointer;transition:color .15s;text-decoration:none}
 .back-btn:hover{color:var(--brand)}
 .art-hero-img{width:100%;aspect-ratio:16/8;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:110px;margin-bottom:28px;position:relative}
+picture{display:contents}
 .art-hero-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .art-cat{display:inline-block;background:var(--brand);color:#fff;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:4px 11px;border-radius:3px;margin-bottom:14px}
 .art-title{font-family:var(--display);font-size:clamp(26px,4vw,40px);font-weight:800;line-height:1.18;color:var(--ink);margin-bottom:16px}
