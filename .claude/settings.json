@@ -29,7 +29,14 @@
       "Bash(vendor/bin/phpunit --filter \"SeoAccessibilityTest|SeoTest\")",
       "Bash(vendor/bin/phpunit --filter \"ArticlePublishingTest|ScheduledPublishingTest|AuthorizationTest\")",
       "Bash(vendor/bin/phpunit --filter MultiCategoryTest --testdox)",
-      "Bash(vendor/bin/phpunit --filter \"test_editor_renders_additional_category_checkboxes|MultiCategoryTest\")"
+      "Bash(vendor/bin/phpunit --filter \"test_editor_renders_additional_category_checkboxes|MultiCategoryTest\")",
+      "Bash(git add *)",
+      "Bash(npm -v)",
+      "Bash(echo \"npm: $\\(npm -v || echo 'NOT INSTALLED'\\)\")",
+      "Bash(sed -i '87,367d' resources/views/layouts/frontend.blade.php)",
+      "Bash(sed -i \"86a @vite\\(['resources/css/app.css']\\)\" resources/views/layouts/frontend.blade.php)",
+      "Bash(timeout 300 npm install)",
+      "Bash(timeout 180 npm run build)"
     ]
   }
 }
