@@ -97,7 +97,7 @@
 
     <div class="art-hero-img" style="background:{{ $article->cover_bg }}">
       @if($article->cover_image)
-        <img src="{{ $article->cover_image }}" alt="{{ $article->title }}" fetchpriority="high" decoding="async">
+        <x-responsive-image :src="$article->cover_image" :alt="$article->title" eager />
       @else
         <span style="position:relative;z-index:1">{{ $article->cover_emoji }}</span>
       @endif
@@ -203,7 +203,7 @@
         <a href="{{ route('article', $r->slug) }}" class="card-box" style="text-decoration:none">
           <div class="cb-thumb" style="background:{{ $r->cover_bg }}">
             @if($r->cover_image)
-              <img src="{{ $r->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $r->title }}" loading="lazy" decoding="async">
+              <x-responsive-image :src="$r->cover_image" :alt="$r->title" style="width:100%;height:100%;object-fit:cover" />
             @else
               {{ $r->cover_emoji }}
             @endif
@@ -250,7 +250,7 @@
         <a href="{{ route('article', $t->slug) }}" class="card-num" style="text-decoration:none">
           <div style="width:52px;height:52px;border-radius:6px;background:{{ $t->cover_bg }};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden">
             @if($t->cover_image)
-              <img src="{{ $t->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $t->title }}" loading="lazy" decoding="async">
+              <x-responsive-image :src="$t->cover_image" :alt="$t->title" style="width:100%;height:100%;object-fit:cover" />
             @else
               {{ $t->cover_emoji }}
             @endif

@@ -41,6 +41,9 @@ class MediaController extends Controller
             $file->move($uploadDir, $filename);
         }
 
+        // Generate a WebP sibling so <x-responsive-image> can serve a smaller format.
+        $this->generateWebp($destination, $ext);
+
         $media = Media::create([
             'filename'      => $filename,
             'original_name' => $file->getClientOriginalName(),
@@ -101,5 +104,32 @@ class MediaController extends Controller
         imagedestroy($img);
 
         return $ok;
+    }
+
+    /** Write a .webp sibling next to a jpg/png upload (smaller payload for modern browsers). */
+    private function generateWebp(string $path, string $ext): void
+    {
+        if (! function_exists('imagewebp') || ! in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+            return;
+        }
+
+        $data = @file_get_contents($path);
+        if ($data === false) {
+            return;
+        }
+
+        $img = @imagecreatefromstring($data);
+        if ($img === false) {
+            return;
+        }
+
+        imagepalettetotruecolor($img);
+        imagealphablending($img, false);
+        imagesavealpha($img, true);
+
+        $webpPath = preg_replace('/\.(jpe?g|png)$/i', '.webp', $path);
+        @imagewebp($img, $webpPath, 82);
+
+        imagedestroy($img);
     }
 }

@@ -40,7 +40,9 @@
       "Bash(timeout 200 composer require spatie/laravel-responsecache)",
       "Bash(php -l app/Support/PublicResponseCacheProfile.php)",
       "Bash(vendor/bin/phpunit --filter ResponseCacheTest --testdox)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(php -l app/Http/Controllers/Admin/MediaController.php)",
+      "Bash(vendor/bin/phpunit --filter ImagePipelineTest --testdox)"
     ]
   }
 }
