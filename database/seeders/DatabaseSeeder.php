@@ -131,12 +131,16 @@ class DatabaseSeeder extends Seeder
         foreach ($articles as $data) {
             $slug = Article::generateSlug($data['title']);
             $rt   = Article::calculateReadTime($data['body']);
-            Article::firstOrCreate(['slug' => $slug], array_merge($data, [
+            $tags = $data['tags'] ?? [];
+            unset($data['tags']);
+
+            $article = Article::firstOrCreate(['slug' => $slug], array_merge($data, [
                 'author_id' => $admin->id,
                 'slug'      => $slug,
                 'read_time' => $rt,
-                'tags'      => $data['tags'],
             ]));
+
+            $article->syncTagsFromInput($tags);
         }
 
         // Refresh category counts
@@ -148,6 +152,8 @@ class DatabaseSeeder extends Seeder
             ['key'=>'site_tagline',     'value'=>"India's #1 Kabaddi Media Platform",          'group'=>'general'],
             ['key'=>'site_email',       'value'=>'aditya03091995@gmail.com',                    'group'=>'general'],
             ['key'=>'site_phone',       'value'=>'+91 9979269732',                              'group'=>'general'],
+            ['key'=>'site_whatsapp',    'value'=>'919979269732',                                'group'=>'general'],
+            ['key'=>'site_address',     'value'=>'Jaipur, Rajasthan, India',                    'group'=>'general'],
             ['key'=>'site_description', 'value'=>"India's #1 Kabaddi media platform.",          'group'=>'general'],
             ['key'=>'breaking_ticker',  'value'=>'PKL Season 11 Final: Jaipur Pink Panthers 42–37 Patna Pirates | Pardeep Narwal crosses 1,500 career raid points | Kabaddi World Cup 2025 — India squad announced', 'group'=>'general'],
             ['key'=>'footer_tagline',   'value'=>'ADT Sports is not covering Kabaddi. It is building its future.', 'group'=>'appearance'],

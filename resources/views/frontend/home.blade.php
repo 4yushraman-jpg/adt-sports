@@ -26,7 +26,7 @@
         @if($heroLead->cover_image)
           <img src="{{ $heroLead->cover_image }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt="{{ $heroLead->title }}" fetchpriority="high" decoding="async">
         @else
-          {{ $heroLead->cover_emoji }}
+          <x-cover-placeholder :article="$heroLead" />
         @endif
       </div>
       <div class="hero-lead-veil"></div>
@@ -52,7 +52,7 @@
           @if($a->cover_image)
             <img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
           @else
-            {{ $a->cover_emoji }}
+            <x-cover-placeholder :article="$a" />
           @endif
         </div>
         <div>
@@ -66,17 +66,6 @@
   </div>
   @endif
 
-  {{-- ── CATEGORY TABS ────────────────────────────────────── --}}
-  <div class="cat-tabs">
-    <a href="{{ route('home') }}" class="ctab {{ !$catSlug ? 'active' : '' }}">All</a>
-    @foreach($categories as $cat)
-      <a href="{{ route('home', ['category' => $cat->slug]) }}"
-         class="ctab {{ $catSlug === $cat->slug ? 'active' : '' }}">
-        {{ $cat->name }}
-      </a>
-    @endforeach
-  </div>
-
   {{-- ── MAIN CONTENT + SIDEBAR ──────────────────────────── --}}
   <div class="content-grid">
     <main>
@@ -89,8 +78,6 @@
         </div>
         @if($catSlug)
           <a href="{{ route('category', $catSlug) }}" class="sec-hd-more">All {{ $categories->firstWhere('slug',$catSlug)?->name }} →</a>
-        @else
-          <a href="{{ route('home') }}" class="sec-hd-more">All Articles →</a>
         @endif
       </div>
 
@@ -117,7 +104,7 @@
           @if($a->cover_image)
             <img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
           @else
-            {{ $a->cover_emoji }}
+            <x-cover-placeholder :article="$a" />
           @endif
         </div>
       </a>
@@ -131,8 +118,9 @@
       </div>
       @endforelse
 
-      {{-- Feature strip (articles 5-7) --}}
-      @if($articles->count() > 5)
+      {{-- Feature strip (articles 6-8) — only when it can show a full row of 3,
+           otherwise a lone card looks stray. --}}
+      @if($articles->count() >= 8)
       <div class="feature-strip">
         @foreach($articles->slice(5, 3) as $a)
         <a href="{{ route('article', $a->slug) }}" class="fs-item" style="text-decoration:none">
@@ -144,8 +132,8 @@
       </div>
       @endif
 
-      {{-- Must Read grid (articles 8-10) --}}
-      @if($articles->count() > 8)
+      {{-- Must Read grid (articles 9-11) — only when it can fill all 3 cells. --}}
+      @if($articles->count() >= 11)
       <div class="sec-hd">
         <div class="sec-hd-left">
           <div class="sec-hd-bar"></div>
@@ -159,7 +147,7 @@
             @if($a->cover_image)
               <img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
             @else
-              {{ $a->cover_emoji }}
+              <x-cover-placeholder :article="$a" />
             @endif
           </div>
           <span class="cb-cat" style="{{ $a->category ? 'color:'.$a->category->color : '' }}">
@@ -188,7 +176,7 @@
       {{-- Trending --}}
       <div class="widget">
         <div style="display:inline-flex;align-items:center;gap:6px;background:var(--brand-soft);color:var(--brand);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-bottom:14px">
-          🔥 Trending Now
+          <i class="fa-solid fa-arrow-trend-up"></i> Trending Now
         </div>
         @forelse($trending as $i => $a)
         <a href="{{ route('article', $a->slug) }}" class="card-num" style="text-decoration:none">
@@ -203,38 +191,11 @@
         @endforelse
       </div>
 
-      {{-- Newsletter --}}
-      <div class="widget widget-nl" id="newsletter">
-        <div class="sec-hd" style="border-bottom-color:rgba(255,255,255,.1);margin-bottom:14px">
-          <div class="sec-hd-left">
-            <div class="sec-hd-bar"></div>
-            <span class="sec-hd-label" style="color:#F0EBE5">Daily Digest</span>
-          </div>
-        </div>
-        <p class="nl-desc">Get the biggest Kabaddi headlines, match analysis, and exclusive stories delivered straight to your inbox.</p>
-        <input type="email" class="nl-input" placeholder="your@email.com" id="nlEmail">
-        <button class="nl-btn" onclick="subscribeNl()">Subscribe Now →</button>
-      </div>
-
-      {{-- Topics --}}
-      <div class="widget">
-        <div class="sec-hd" style="margin-bottom:14px">
-          <div class="sec-hd-left">
-            <div class="sec-hd-bar"></div>
-            <span class="sec-hd-label">Topics</span>
-          </div>
-        </div>
-        <div class="tag-cloud">
-          @foreach($categories as $cat)
-            <a href="{{ route('category', $cat->slug) }}" class="tag">{{ $cat->name }}</a>
-          @endforeach
-        </div>
-      </div>
 
       {{-- About --}}
       <div class="widget">
         <div class="about-mini-logo">
-          <div class="am-img"><img src="/public/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
+          <div class="am-img"><img src="/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
           <div class="am-name"><span>ADT</span> Sports</div>
         </div>
         <p class="about-mini-desc">India's #1 Kabaddi media platform — covering every raid, every story, every league.</p>
@@ -255,13 +216,3 @@
 </div>
 @endsection
 
-@push('scripts')
-<script>
-function subscribeNl() {
-  const e = document.getElementById('nlEmail').value;
-  if (!e || !e.includes('@')) { alert('Please enter a valid email address.'); return; }
-  alert('✅ Thanks for subscribing! You\'ll receive the Daily Digest soon.');
-  document.getElementById('nlEmail').value = '';
-}
-</script>
-@endpush

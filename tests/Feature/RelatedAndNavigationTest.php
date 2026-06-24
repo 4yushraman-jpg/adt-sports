@@ -13,11 +13,11 @@ class RelatedAndNavigationTest extends TestCase
 
     public function test_related_prefers_articles_with_shared_tags(): void
     {
-        $subject = Article::factory()->published()->create(['tags' => ['kabaddi', 'pkl', 'finals']]);
+        $subject = Article::factory()->published()->withTags(['kabaddi', 'pkl', 'finals'])->create();
 
-        $strongMatch = Article::factory()->published()->create(['tags' => ['pkl', 'finals']]); // 2 shared
-        $weakMatch   = Article::factory()->published()->create(['tags' => ['pkl']]);            // 1 shared
-        $noMatch     = Article::factory()->published()->create(['tags' => ['cricket']]);        // 0 shared
+        $strongMatch = Article::factory()->published()->withTags(['pkl', 'finals'])->create(); // 2 shared
+        $weakMatch   = Article::factory()->published()->withTags(['pkl'])->create();            // 1 shared
+        $noMatch     = Article::factory()->published()->withTags(['cricket'])->create();        // 0 shared
 
         $related = $subject->getRelated(3)->pluck('id');
 
@@ -30,16 +30,16 @@ class RelatedAndNavigationTest extends TestCase
     public function test_related_falls_back_to_category_without_tags(): void
     {
         $category = Category::factory()->create();
-        $subject  = Article::factory()->published()->create(['tags' => [], 'category_id' => $category->id]);
-        $sameCat  = Article::factory()->published()->create(['tags' => [], 'category_id' => $category->id]);
+        $subject  = Article::factory()->published()->withTags([])->create(['category_id' => $category->id]);
+        $sameCat  = Article::factory()->published()->withTags([])->create(['category_id' => $category->id]);
 
         $this->assertTrue($subject->getRelated(3)->pluck('id')->contains($sameCat->id));
     }
 
     public function test_related_excludes_self_and_drafts(): void
     {
-        $subject = Article::factory()->published()->create(['tags' => ['pkl']]);
-        $draft   = Article::factory()->draft()->create(['tags' => ['pkl']]);
+        $subject = Article::factory()->published()->withTags(['pkl'])->create();
+        $draft   = Article::factory()->draft()->withTags(['pkl'])->create();
 
         $related = $subject->getRelated(3)->pluck('id');
         $this->assertFalse($related->contains($subject->id));

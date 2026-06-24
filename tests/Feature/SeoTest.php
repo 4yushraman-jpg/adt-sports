@@ -58,4 +58,22 @@ class SeoTest extends TestCase
             ->assertOk()
             ->assertSee($recent->slug, false);
     }
+
+    public function test_logo_references_use_correct_path(): void
+    {
+        $html = $this->get('/')->getContent();
+
+        $this->assertStringNotContainsString('/public/uploads/', $html);
+        $this->assertStringContainsString('/uploads/logo.png', $html);
+    }
+
+    public function test_article_jsonld_publisher_logo_is_correct(): void
+    {
+        $article = Article::factory()->published()->create();
+
+        $this->get(route('article', $article->slug))
+            ->assertOk()
+            ->assertSee('"url":"' . url('/uploads/logo.png') . '"', false)
+            ->assertDontSee('/public/uploads/', false);
+    }
 }

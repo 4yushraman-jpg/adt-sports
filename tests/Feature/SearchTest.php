@@ -40,4 +40,13 @@ class SearchTest extends TestCase
             ->assertOk()
             ->assertDontSee('Hidden Draft QQQX', false);
     }
+
+    public function test_search_is_rate_limited(): void
+    {
+        for ($i = 0; $i < 30; $i++) {
+            $this->get('/search?q=kabaddi')->assertOk();
+        }
+
+        $this->get('/search?q=kabaddi')->assertStatus(429);
+    }
 }

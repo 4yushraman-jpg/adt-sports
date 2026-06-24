@@ -25,9 +25,24 @@ class ArticleFactory extends Factory
             'status'       => 'published',
             'featured'     => false,
             'breaking'     => false,
-            'tags'         => ['kabaddi', 'pkl'],
             'published_at' => now()->subDay(),
         ];
+    }
+
+    /** Attach a default tag set unless the caller specified their own via withTags(). */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Article $article) {
+            if ($article->tags()->count() === 0) {
+                $article->syncTagsFromInput(['kabaddi', 'pkl']);
+            }
+        });
+    }
+
+    /** Attach (or clear, with []) a specific tag set after the article is created. */
+    public function withTags(array $names): static
+    {
+        return $this->afterCreating(fn (Article $article) => $article->syncTagsFromInput($names));
     }
 
     public function draft(): static

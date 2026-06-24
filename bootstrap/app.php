@@ -13,8 +13,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin'      => \App\Http\Middleware\AdminMiddleware::class, // any staff (admin|editor)
+            'admin.only' => \App\Http\Middleware\EnsureAdmin::class,     // full administrators
         ]);
+
+        // Readable-by-JS marker holding the commenter's display name only, so the
+        // (full-page-cached) article page can toggle the subscribe-gate vs the
+        // comment box client-side. The authoritative identity (name + email) lives
+        // in the separate, still-encrypted adt_commenter cookie.
+        $middleware->encryptCookies(except: ['adt_commenter_name']);
 
         // The app has no 'login' route (only 'admin.login'); without this, the
         // framework's auth middleware 500s on guest access to admin routes.
@@ -34,6 +41,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO
                 | Request::HEADER_X_FORWARDED_AWS_ELB,
         );
+
+        // Collapse all traffic onto one canonical host (when CANONICAL_HOST is set).
+        // Appended to the GLOBAL stack so it runs AFTER TrustProxies (getHost() then
+        // reflects X-Forwarded-Host) but BEFORE the web group — so the 301 never
+        // reaches or gets stored by the response cache. Keeps cached host == the
+        // host targeted forgets are built from. No-op when CANONICAL_HOST is unset.
+        $middleware->append(\App\Http\Middleware\ForceCanonicalHost::class);
 
         // Security headers stay outer so they apply to cached serves too; the
         // full-page cache (guests only, via PublicResponseCacheProfile) sits inside.

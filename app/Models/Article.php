@@ -21,13 +21,12 @@ class Article extends Model
     protected $fillable = [
         'title','slug','excerpt','body','cover_image','cover_emoji',
         'cover_bg','category_id','author_id','status','featured',
-        'breaking','views','read_time','tags','meta_title','meta_desc','published_at',
+        'breaking','views','likes','read_time','meta_title','meta_desc','published_at',
     ];
 
     protected $casts = [
         'featured'     => 'boolean',
         'breaking'     => 'boolean',
-        'tags'         => 'array',
         'published_at' => 'datetime',
     ];
 
@@ -50,6 +49,38 @@ class Article extends Model
 
     /** Additional categories (beyond the primary) via the article_category pivot. */
     public function categories() { return $this->belongsToMany(Category::class); }
+
+    /** Normalized tags via the article_tag pivot. */
+    public function tags() { return $this->belongsToMany(Tag::class); }
+
+    /** Reader comments (moderated — see Comment::scopeApproved). */
+    public function comments() { return $this->hasMany(Comment::class); }
+
+    /** Saved snapshots of prior content (newest first). */
+    public function revisions() { return $this->hasMany(ArticleRevision::class)->latest('id'); }
+
+    /**
+     * Sync this article's tags from free-text input (comma-separated string or
+     * an array of names). Names are canonicalized via Tag::fromName so casing
+     * and whitespace variants collapse to a single tag.
+     */
+    public function syncTagsFromInput(string|array|null $input): void
+    {
+        // The editor always submits a (possibly empty) tags field, and Laravel's
+        // ConvertEmptyStringsToNull middleware turns "" into null — treat that as
+        // "no tags" rather than letting it blow up the save.
+        $names = is_array($input) ? $input : explode(',', (string) $input);
+
+        $ids = collect($names)
+            ->map(fn ($name) => Tag::fromName((string) $name))
+            ->filter()
+            ->unique('id')
+            ->take(25) // cap tags per article — keeps one bad paste from minting hundreds
+            ->pluck('id')
+            ->all();
+
+        $this->tags()->sync($ids);
+    }
 
     /* ── Scopes ────────────────────────────────────────── */
     public function scopePublished(Builder $q): Builder
@@ -87,7 +118,11 @@ class Article extends Model
 
     public function scopeInCategory(Builder $q, string $slug): Builder
     {
-        return $q->whereHas('category', fn($c) => $c->where('slug', $slug));
+        // Match the category page: primary (category_id) OR an additional (pivot)
+        // category, so the homepage ?category= filter and /category/{slug} agree.
+        return $q->where(fn ($x) => $x
+            ->whereHas('category', fn ($c) => $c->where('slug', $slug))
+            ->orWhereHas('categories', fn ($c) => $c->where('slug', $slug)));
     }
 
     public function scopeSearch(Builder $q, string $term): Builder
@@ -130,7 +165,7 @@ class Article extends Model
 
     public function getTagsListAttribute(): string
     {
-        return is_array($this->tags) ? implode(', ', $this->tags) : ($this->tags ?? '');
+        return $this->tags->pluck('name')->implode(', ');
     }
 
     /* ── Helpers ───────────────────────────────────────── */
@@ -145,9 +180,9 @@ class Article extends Model
         return $slug;
     }
 
-    public static function calculateReadTime(string $body): string
+    public static function calculateReadTime(?string $body): string
     {
-        $words = str_word_count(strip_tags($body));
+        $words = str_word_count(strip_tags((string) $body));
         return max(1, (int) ceil($words / 200)) . ' min';
     }
 
@@ -158,22 +193,19 @@ class Article extends Model
      */
     public function getRelated(int $limit = 3)
     {
-        $tags = array_values(array_filter(is_array($this->tags) ? $this->tags : []));
-        $base = static::published()->where('id', '!=', $this->id);
+        $tagIds = $this->tags()->pluck('tags.id');
+        $base   = static::published()->where('id', '!=', $this->id);
 
-        if ($tags) {
+        if ($tagIds->isNotEmpty()) {
+            // Indexed join through article_tag: filter to posts sharing at least
+            // one tag, rank by how many tags they share (DB-side, no PHP sort).
             $tagMatches = (clone $base)
-                ->where(function (Builder $q) use ($tags) {
-                    foreach ($tags as $tag) {
-                        $q->orWhereJsonContains('tags', $tag);
-                    }
-                })
+                ->whereHas('tags', fn (Builder $q) => $q->whereIn('tags.id', $tagIds))
+                ->withCount(['tags as shared_tags' => fn ($q) => $q->whereIn('tags.id', $tagIds)])
+                ->orderByDesc('shared_tags')
                 ->latest('published_at')
-                ->limit(20)
-                ->get()
-                ->sortByDesc(fn ($a) => count(array_intersect(is_array($a->tags) ? $a->tags : [], $tags)))
-                ->take($limit)
-                ->values();
+                ->limit($limit)
+                ->get();
 
             if ($tagMatches->count() >= $limit) {
                 return $tagMatches;
@@ -247,5 +279,59 @@ class Article extends Model
                     ->update(['count' => DB::raw('count + 1')]);
             }
         }
+    }
+
+    /**
+     * Toggle a like for a given browser fingerprint and return the new state.
+     * The article_likes unique key dedupes per visitor; the denormalised
+     * articles.likes counter is updated with a raw query so updated_at (and the
+     * sitemap lastmod) stays stable — same discipline as view counting.
+     *
+     * @return array{liked: bool, likes: int}
+     */
+    public function toggleLike(string $fingerprint): array
+    {
+        // Drive the toggle off the atomic DELETE result rather than a separate
+        // exists() read: DELETE returns the affected-row count, so two racing
+        // unlikes can't both decrement (the second deletes 0 rows). The insert
+        // path is likewise guarded by the unique constraint. This keeps the
+        // denormalised likes counter in lock-step with the article_likes rows.
+        $removed = DB::transaction(function () use ($fingerprint) {
+            $rows = DB::table('article_likes')
+                ->where('article_id', $this->id)
+                ->where('fingerprint', $fingerprint)
+                ->delete();
+
+            if ($rows > 0) {
+                DB::table('articles')->where('id', $this->id)->where('likes', '>', 0)
+                    ->update(['likes' => DB::raw('likes - 1')]);
+            }
+
+            return $rows;
+        });
+
+        if ($removed > 0) {
+            $liked = false;
+        } else {
+            try {
+                DB::transaction(function () use ($fingerprint) {
+                    DB::table('article_likes')->insert([
+                        'article_id'  => $this->id,
+                        'fingerprint' => $fingerprint,
+                        'created_at'  => now(),
+                    ]);
+                    DB::table('articles')->where('id', $this->id)
+                        ->update(['likes' => DB::raw('likes + 1')]);
+                });
+            } catch (UniqueConstraintViolationException $e) {
+                // Raced a concurrent like — the row (and its increment) already exist.
+            }
+            $liked = true;
+        }
+
+        return [
+            'liked' => $liked,
+            'likes' => (int) DB::table('articles')->where('id', $this->id)->value('likes'),
+        ];
     }
 }

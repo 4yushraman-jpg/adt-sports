@@ -22,7 +22,10 @@ class MediaController extends Controller
 
     public function upload(Request $request)
     {
-        $request->validate(['file' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:10240']);
+        $request->validate([
+            'file' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:10240',
+            'alt'  => 'nullable|string|max:255',
+        ]);
 
         $file = $request->file('file');
         $ext  = strtolower($file->getClientOriginalExtension());
@@ -47,6 +50,7 @@ class MediaController extends Controller
         $media = Media::create([
             'filename'      => $filename,
             'original_name' => $file->getClientOriginalName(),
+            'alt'           => $request->input('alt'),
             'mimetype'      => $file->getMimeType(),
             'size'          => @filesize($destination) ?: $file->getSize(),
             'url'           => '/' . self::DIR . '/' . $filename,
@@ -58,7 +62,17 @@ class MediaController extends Controller
             'id'   => $media->id,
             'url'  => $media->url,
             'name' => $media->original_name,
+            'alt'  => $media->alt,
         ]);
+    }
+
+    /** Update the alt text of an existing image (from the media library). */
+    public function update(Request $request, Media $media)
+    {
+        $data = $request->validate(['alt' => 'nullable|string|max:255']);
+        $media->update(['alt' => $data['alt'] ?? null]);
+
+        return response()->json(['ok' => true]);
     }
 
     public function destroy(Media $media)

@@ -26,12 +26,12 @@
           <div class="actions">
             <form action="{{ route('admin.articles.restore', $a->id) }}" method="POST" style="display:inline">
               @csrf @method('PUT')
-              <button type="submit" class="btn btn-success btn-sm">♻️ Restore</button>
+              <button type="submit" class="btn btn-success btn-sm"><i class="fa-solid fa-rotate-left"></i> Restore</button>
             </form>
             <form action="{{ route('admin.articles.force', $a->id) }}" method="POST" style="display:inline"
                   onsubmit="return confirm('Permanently delete this article? This cannot be undone.')">
               @csrf @method('DELETE')
-              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626">🗑️ Delete forever</button>
+              <button type="submit" class="btn btn-ghost btn-sm" style="color:#dc2626"><i class="fa-solid fa-trash-can"></i> Delete forever</button>
             </form>
           </div>
         </td>

@@ -90,6 +90,24 @@ class MultiCategoryTest extends TestCase
         $this->get("/category/{$extra->slug}")->assertOk()->assertDontSee('Soon Trashed', false);
     }
 
+    public function test_homepage_category_filter_includes_additional_category_articles(): void
+    {
+        $primary = Category::factory()->create();
+        $extra   = Category::factory()->create();
+        $article = Article::factory()->published()->create([
+            'title'       => 'Cross Filter',
+            'excerpt'     => 'HOME-FILTER-MARKER-XYZ',
+            'category_id' => $primary->id,
+        ]);
+        $article->categories()->sync([$extra->id]);
+
+        // Filtering the homepage by the ADDITIONAL category must surface the article,
+        // matching the /category/{slug} page behaviour.
+        $this->get('/?category=' . $extra->slug)
+            ->assertOk()
+            ->assertSee('HOME-FILTER-MARKER-XYZ', false);
+    }
+
     public function test_editor_renders_additional_category_checkboxes(): void
     {
         $admin = User::factory()->admin()->create();
@@ -114,5 +132,49 @@ class MultiCategoryTest extends TestCase
         $article = Article::where('title', 'Button Publish')->first();
         $this->assertSame('published', $article->status);
         $this->assertTrue($article->isPublished());
+    }
+
+    public function test_refresh_count_includes_pivot_categories(): void
+    {
+        $primary = Category::factory()->create();
+        $extra   = Category::factory()->create();
+
+        $article = Article::factory()->published()->create(['category_id' => $primary->id]);
+        $article->categories()->sync([$extra->id]);
+
+        // The pivot (additional) category must count the cross-posted article.
+        $extra->refreshCount();
+        $this->assertSame(1, $extra->fresh()->article_count);
+
+        // And the primary still counts it too.
+        $primary->refreshCount();
+        $this->assertSame(1, $primary->fresh()->article_count);
+    }
+
+    public function test_refresh_count_excludes_drafts(): void
+    {
+        $category = Category::factory()->create();
+        Article::factory()->draft()->create(['category_id' => $category->id]);
+
+        $category->refreshCount();
+        $this->assertSame(0, $category->fresh()->article_count);
+    }
+
+    public function test_creating_article_refreshes_additional_category_count(): void
+    {
+        $admin   = User::factory()->admin()->create();
+        $primary = Category::factory()->create();
+        $extra   = Category::factory()->create();
+
+        $this->actingAs($admin)->post('/admin/articles', [
+            'title'           => 'Counted Cross Post',
+            'status_override' => 'published',
+            'category_id'     => $primary->id,
+            'categories'      => [$extra->id],
+        ])->assertRedirect();
+
+        // Both the primary and the additional category should reflect the article.
+        $this->assertSame(1, $primary->fresh()->article_count);
+        $this->assertSame(1, $extra->fresh()->article_count);
     }
 }

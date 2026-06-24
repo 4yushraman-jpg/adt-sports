@@ -70,7 +70,7 @@
         </div>
         <div class="cr-thumb" style="background:{{ $a->cover_bg }}">
           @if($a->cover_image)<img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
-          @else {{ $a->cover_emoji }} @endif
+          @else <x-cover-placeholder :article="$a" /> @endif
         </div>
       </a>
       @endforeach
@@ -94,16 +94,6 @@
           </div>
         </a>
         @endforeach
-      </div>
-      <div class="widget">
-        <div class="sec-hd" style="margin-bottom:14px">
-          <div class="sec-hd-left"><div class="sec-hd-bar"></div><span class="sec-hd-label">Categories</span></div>
-        </div>
-        <div class="tag-cloud">
-          @foreach($categories as $cat)
-            <a href="{{ route('category', $cat->slug) }}" class="tag">{{ $cat->name }}</a>
-          @endforeach
-        </div>
       </div>
     </aside>
   </div>

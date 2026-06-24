@@ -78,6 +78,51 @@ class ResponseCacheTest extends TestCase
         $this->get("/article/{$article->slug}")->assertSee('Changed Title BBB', false);
     }
 
+    public function test_draft_edits_do_not_evict_cache_but_publishing_does(): void
+    {
+        config(['responsecache.enabled' => true]);
+        ResponseCache::clear();
+
+        // A live article so the home feed has cacheable content.
+        $live = Article::factory()->published()->create(['title' => 'Live Home AAA']);
+        $this->get('/')->assertOk()->assertSee('Live Home AAA', false);
+
+        // Change what a fresh home render would show, without firing the observer.
+        DB::table('articles')->where('id', $live->id)->update(['title' => 'Live Home BBB']);
+
+        // Editing a DRAFT changes nothing a guest can see -> the home cache must
+        // survive (this is the whole point of the targeted invalidation).
+        $draft = Article::factory()->create(['status' => 'draft', 'published_at' => null]);
+        Article::find($draft->id)->update(['excerpt' => 'still just a draft']);
+        $this->get('/')
+            ->assertSee('Live Home AAA', false)
+            ->assertDontSee('Live Home BBB', false);
+
+        // Publishing IS publicly relevant -> home is forgotten -> fresh render.
+        Article::find($draft->id)->update(['status' => 'published', 'published_at' => now()]);
+        $this->get('/')->assertSee('Live Home BBB', false);
+    }
+
+    public function test_unpublishing_evicts_the_cached_article_and_home(): void
+    {
+        config(['responsecache.enabled' => true]);
+        ResponseCache::clear();
+
+        $article = Article::factory()->published()->create(['title' => 'Going Away SOON']);
+
+        // Warm both the article page and the home feed.
+        $this->get("/article/{$article->slug}")->assertOk()->assertSee('Going Away SOON', false);
+        $this->get('/')->assertOk()->assertSee('Going Away SOON', false);
+
+        // Unpublish (published -> draft). publiclyRelevant() must catch this via
+        // getOriginal('status') === 'published', or the stale page lingers.
+        Article::find($article->id)->update(['status' => 'draft', 'published_at' => null]);
+
+        // The article page is now a 404 for guests, and home no longer lists it.
+        $this->get("/article/{$article->slug}")->assertNotFound();
+        $this->get('/')->assertOk()->assertDontSee('Going Away SOON', false);
+    }
+
     public function test_beacon_is_never_cached(): void
     {
         config(['responsecache.enabled' => true]);

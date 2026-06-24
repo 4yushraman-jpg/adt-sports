@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Article, Category, Setting, User};
+use App\Models\{Article, Category, Setting, Tag, User};
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -57,10 +57,8 @@ class SeoController extends Controller
                 ]);
             }
 
-            // Stream articles (memory-safe at scale) and collect distinct tags
-            // in the same pass instead of a second full table scan.
-            $tags = [];
-            Article::published()->latest('published_at')->lazy()->each(function ($article) use (&$out, &$tags) {
+            // Stream articles (memory-safe at scale).
+            Article::published()->latest('published_at')->lazy()->each(function ($article) use (&$out) {
                 $out .= $this->urlNode([
                     'loc'        => route('article', $article->slug),
                     'lastmod'    => optional($article->updated_at ?? $article->published_at)->toAtomString(),
@@ -68,13 +66,6 @@ class SeoController extends Controller
                     'priority'   => '0.8',
                     'image'      => $this->absoluteUrl($article->cover_image),
                 ]);
-
-                foreach (is_array($article->tags) ? $article->tags : [] as $tag) {
-                    $tag = trim((string) $tag);
-                    if ($tag !== '') {
-                        $tags[$tag] = true;
-                    }
-                }
             });
 
             // Author archive pages (only authors with published articles).
@@ -86,7 +77,8 @@ class SeoController extends Controller
                 ]);
             }
 
-            foreach (array_keys($tags) as $tag) {
+            // Tag archive pages (only tags attached to a published article).
+            foreach (Tag::whereHas('articles', fn ($q) => $q->published())->orderBy('name')->get() as $tag) {
                 $out .= $this->urlNode([
                     'loc'        => route('tag', $tag),
                     'changefreq' => 'weekly',

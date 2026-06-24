@@ -34,8 +34,9 @@ class PublicResponseCacheProfile implements CacheProfile
             return false;
         }
 
-        // Exclude the admin panel, the view-count beacon, and search results.
-        if ($request->is('admin', 'admin/*', 'article/*/hit', 'search')) {
+        // Exclude the admin panel, the view-count beacon, the per-visitor
+        // subscribe/confirm endpoints, and search results.
+        if ($request->is('admin', 'admin/*', 'article/*/hit', 'article/*/commenter/*', 'subscribe/*', 'search')) {
             return false;
         }
 

@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+{{-- Refreshed per-request even on cached pages via responsecache's CsrfTokenReplacer --}}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" id="themeColorMeta">
+{{-- Apply theme before first paint (saved pref, else the OS setting) to avoid a flash --}}
+<script>(function(){var s=localStorage.getItem('adt-theme');var d=s?s==='dark':(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light');var m=document.getElementById('themeColorMeta');if(m)m.content=d?'#140e0a':'#ffffff';})();</script>
 <title>@yield('title', ($settings['site_name'] ?? 'ADT Sports'))</title>
 <meta name="description" content="@yield('meta_desc', $settings['site_description'] ?? "India's #1 Kabaddi media platform.")">
 
@@ -16,7 +22,7 @@
     $seoCanonical = trim($__env->yieldContent('canonical')) ?: url()->current();
     $seoRobots    = trim($__env->yieldContent('robots', 'index, follow'));
     $seoType      = trim($__env->yieldContent('og_type', 'website'));
-    $seoImage     = trim($__env->yieldContent('og_image')) ?: '/public/uploads/logo.png';
+    $seoImage     = trim($__env->yieldContent('og_image')) ?: '/uploads/logo.png';
     if (! \Illuminate\Support\Str::startsWith($seoImage, ['http://', 'https://'])) {
         $seoImage = url($seoImage);
     }
@@ -57,7 +63,7 @@
     '@type'       => 'Organization',
     'name'        => $seoSiteName,
     'url'         => url('/'),
-    'logo'        => url('/public/uploads/logo.png'),
+    'logo'        => url('/uploads/logo.png'),
     'description' => $settings['site_description'] ?? "India's #1 Kabaddi media platform.",
 ] + (count($seoSocials) ? ['sameAs' => $seoSocials] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
 </script>
@@ -76,7 +82,12 @@
 </script>
 @stack('schema')
 
-  <link rel="shortcut icon" href="/public/uploads/logo.png" data-inertia="favicon-shortcut">
+  <link rel="shortcut icon" href="/uploads/logo.png" data-inertia="favicon-shortcut">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ADT Sports">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -105,13 +116,26 @@
   </div>
 </div>
 
+{{-- Subscribe dialog — opened from any "Subscribe" button --}}
+<div class="subscribe-modal" id="subscribeModal" role="dialog" aria-modal="true" aria-label="Subscribe to the newsletter">
+  <div class="subscribe-card">
+    <button class="sm-close" type="button" aria-label="Close" onclick="closeSubscribe()">✕</button>
+    <h3 class="sm-title">Join the Daily Digest</h3>
+    <p class="sm-desc">Top Kabaddi stories straight to your inbox — free. We'll email a link to confirm; unsubscribe anytime.</p>
+    <input type="text" class="nl-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
+    <input type="text" class="nl-input nl-name" placeholder="Your name" maxlength="80" autocomplete="name">
+    <input type="email" class="nl-input nl-email" placeholder="your@email.com" autocomplete="email">
+    <button class="nl-btn" type="button" onclick="adtSubscribe(this, 'modal')">Subscribe →</button>
+  </div>
+</div>
+
 <div class="mobile-overlay" id="mobileOverlay"></div>
 <div class="mobile-nav" id="mobileNav">
-  <a href="{{ route('home') }}">🏠 Home</a>
+  <a href="{{ route('home') }}"><i class="fa-solid fa-house"></i> Home</a>
   @foreach($categories as $cat)
-    <a href="{{ route('category', $cat->slug) }}">{{ $cat->name }}</a>
+    <a href="{{ route('category', $cat->slug) }}"><i class="fa-solid {{ $cat->display_icon }}"></i> {{ $cat->name }}</a>
   @endforeach
-  <a href="{{ route('search') }}">🔍 Search</a>
+  <a href="{{ route('search') }}"><i class="fa-solid fa-magnifying-glass"></i> Search</a>
 </div>
 
 {{-- TICKER --}}
@@ -140,7 +164,7 @@
 <nav id="mainNav" aria-label="Primary">
   <div class="nav-wrap">
     <a href="{{ route('home') }}" class="logo">
-      <div class="logo-img"><img src="/public/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
+      <div class="logo-img"><img src="/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
       <div class="logo-wordmark"><span class="brand">ADT</span> Sports</div>
     </a>
     <div class="nav-links">
@@ -151,7 +175,7 @@
       @endforeach
       @if($categories->count() > 5)
       <div class="nav-drop">
-        <a href="#">More <span style="font-size:9px;opacity:.5">▾</span></a>
+        <button type="button" class="nav-drop-toggle" aria-haspopup="true" aria-expanded="false">More <span style="font-size:9px;opacity:.5">▾</span></button>
         <div class="drop-menu">
           @foreach($categories->skip(5) as $cat)
             <a href="{{ route('category',$cat->slug) }}">{{ $cat->name }}</a>
@@ -161,12 +185,28 @@
       @endif
     </div>
     <div class="nav-right">
-      <button class="icon-btn" onclick="document.getElementById('srchOverlay').classList.add('open')"><i class="fa-solid fa-magnifying-glass"></i></button>
-      <button class="icon-btn" id="themeBtn"><i class="fa-solid fa-moon"></i></button>
-      <a href="#newsletter" class="btn-sub">Subscribe</a>
-      <button class="hamburger" id="hamburger"><span></span><span></span><span></span></button>
+      <button class="icon-btn" aria-label="Search" onclick="document.getElementById('srchOverlay').classList.add('open')"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <button class="icon-btn" id="themeBtn" aria-label="Toggle dark mode" aria-pressed="false"><i class="fa-solid fa-moon"></i></button>
+      <a href="{{ route('home') }}" class="btn-sub" id="navSubscribe">Subscribe</a>
+      <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav"><span></span><span></span><span></span></button>
     </div>
   </div>
+</nav>
+
+{{-- Mobile bottom navigation (thumb-reachable; hidden on desktop) --}}
+<nav class="bottom-nav" aria-label="Mobile primary">
+  <a href="{{ route('home') }}" class="bn-item {{ request()->routeIs('home') ? 'active' : '' }}">
+    <i class="fa-solid fa-house"></i><span>Home</span>
+  </a>
+  <button type="button" class="bn-item" id="bnSearch" aria-label="Search">
+    <i class="fa-solid fa-magnifying-glass"></i><span>Search</span>
+  </button>
+  <button type="button" class="bn-item" id="bnTopics" aria-label="Browse topics">
+    <i class="fa-solid fa-layer-group"></i><span>Topics</span>
+  </button>
+  <button type="button" class="bn-item" id="bnSubscribe" aria-label="Subscribe">
+    <i class="fa-regular fa-envelope"></i><span>Subscribe</span>
+  </button>
 </nav>
 
 <main id="main">
@@ -178,7 +218,7 @@
   <div class="footer-grid">
     <div>
       <div class="ft-logo">
-        <div class="fl-img"><img src="/public/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
+        <div class="fl-img"><img src="/uploads/logo.png" onerror="this.style.display='none'" alt="ADT"></div>
         <span><em>ADT</em> Sports</span>
       </div>
       <p class="ft-desc">{{ $settings['site_description'] ?? "India's #1 Kabaddi-focused digital media brand." }}</p>
@@ -209,8 +249,10 @@
     <div class="ft-col">
       <h4>ADT Sports</h4>
       <ul>
-        @if(!empty($settings['site_email'])) <li><a href="mailto:{{ $settings['site_email'] }}">Contact Us</a></li> @endif
+        @if(!empty($settings['site_email'])) <li><a href="mailto:{{ $settings['site_email'] }}">{{ $settings['site_email'] }}</a></li> @endif
         @if(!empty($settings['site_phone'])) <li><a href="tel:{{ $settings['site_phone'] }}">{{ $settings['site_phone'] }}</a></li> @endif
+        @if(!empty($settings['site_whatsapp'])) <li><a href="https://wa.me/{{ preg_replace('/\D+/', '', $settings['site_whatsapp']) }}" target="_blank" rel="noopener">WhatsApp</a></li> @endif
+        @if(!empty($settings['site_address'])) <li class="ft-address">{{ $settings['site_address'] }}</li> @endif
       </ul>
     </div>
   </div>
@@ -221,19 +263,82 @@
 </footer>
 
 <script>
-let dark = localStorage.getItem('adt-theme')==='dark';
+let dark = document.documentElement.getAttribute('data-theme')==='dark';
 const themeBtn = document.getElementById('themeBtn');
-function setTheme(d){dark=d;document.documentElement.setAttribute('data-theme',d?'dark':'light');themeBtn.textContent=d?'☀️':'🌙';localStorage.setItem('adt-theme',d?'dark':'light')}
+function setTheme(d){dark=d;document.documentElement.setAttribute('data-theme',d?'dark':'light');themeBtn.innerHTML=d?'<i class="fa-solid fa-sun"></i>':'<i class="fa-solid fa-moon"></i>';themeBtn.setAttribute('aria-pressed',d?'true':'false');var m=document.getElementById('themeColorMeta');if(m)m.content=d?'#140e0a':'#ffffff';localStorage.setItem('adt-theme',d?'dark':'light')}
 themeBtn.onclick=()=>setTheme(!dark);
-if(dark) setTheme(true);
+setTheme(dark); // sync icon/meta with the theme already applied in <head>
 const hamburger=document.getElementById('hamburger');const mobileNav=document.getElementById('mobileNav');const mobileOverlay=document.getElementById('mobileOverlay');
-hamburger.onclick=()=>{mobileNav.classList.toggle('open');mobileOverlay.classList.toggle('open')};
-mobileOverlay.onclick=()=>{mobileNav.classList.remove('open');mobileOverlay.classList.remove('open')};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('srchOverlay').classList.remove('open')});
+function setMenu(open){mobileNav.classList.toggle('open',open);mobileOverlay.classList.toggle('open',open);hamburger.setAttribute('aria-expanded',open?'true':'false')}
+hamburger.onclick=()=>setMenu(!mobileNav.classList.contains('open'));
+mobileOverlay.onclick=()=>setMenu(false);
+// "More" category dropdown: click/tap toggle (CSS hover still covers desktop).
+function closeDrops(){document.querySelectorAll('.nav-drop.open').forEach(d=>{d.classList.remove('open');d.querySelector('.nav-drop-toggle')?.setAttribute('aria-expanded','false')})}
+document.querySelectorAll('.nav-drop-toggle').forEach(btn=>{
+  btn.addEventListener('click',e=>{e.stopPropagation();const d=btn.closest('.nav-drop');const open=d.classList.toggle('open');btn.setAttribute('aria-expanded',open?'true':'false')});
+});
+document.addEventListener('click',e=>{if(!e.target.closest('.nav-drop'))closeDrops()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElementById('srchOverlay').classList.remove('open');document.getElementById('subscribeModal')?.classList.remove('open');closeDrops()}});
+
+// "Subscribe": open the subscribe dialog from anywhere.
+window.openSubscribe=function(){
+  var m=document.getElementById('subscribeModal'); if(!m) return;
+  m.classList.add('open');
+  var n=m.querySelector('.nl-name'); if(n) setTimeout(function(){n.focus()},80);
+};
+window.closeSubscribe=function(){ document.getElementById('subscribeModal')?.classList.remove('open'); };
+window.goSubscribe=function(e){ if(e) e.preventDefault(); openSubscribe(); };
+document.getElementById('navSubscribe')?.addEventListener('click',goSubscribe);
+// Close the dialog on backdrop click.
+document.getElementById('subscribeModal')?.addEventListener('click',function(e){ if(e.target===this) closeSubscribe(); });
+
+// Mobile bottom nav
+document.getElementById('bnSearch')?.addEventListener('click',function(){document.getElementById('srchOverlay').classList.add('open')});
+document.getElementById('bnTopics')?.addEventListener('click',function(){setMenu(true)});
+document.getElementById('bnSubscribe')?.addEventListener('click',goSubscribe);
+
 window.addEventListener('scroll',()=>{
   document.getElementById('mainNav').classList.toggle('shadow',window.scrollY>30);
   const d=document.documentElement;document.getElementById('readBar').style.width=((window.scrollY/(d.scrollHeight-d.clientHeight))*100)+'%';
 },{passive:true});
+
+// Shared newsletter sign-up — reads name + email from the widget, posts to
+// /subscribe with the CSRF token from <meta>.
+window.adtSubscribe = function (btnEl, source) {
+  const root = (btnEl && btnEl.closest('.widget-nl, .subscribe-card')) || document;
+  const nameEl = root.querySelector('.nl-name');
+  const emailEl = root.querySelector('.nl-email');
+  const hpEl = root.querySelector('.nl-hp');
+  const name = nameEl ? (nameEl.value || '').trim() : '';
+  const email = (emailEl ? emailEl.value : '').trim();
+  if (!name) { alert('Please enter your name.'); return; }
+  if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+  const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const original = btnEl ? btnEl.textContent : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Subscribing…'; }
+  fetch('{{ route('subscribe') }}', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':token},
+    body: JSON.stringify({name, email, hp_url: hpEl ? hpEl.value : '', source: source || 'site'})
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(d => { alert(d.message || '✅ Subscribed!'); if (nameEl) nameEl.value = ''; if (emailEl) emailEl.value = ''; if (window.closeSubscribe) closeSubscribe(); })
+  .catch(() => alert('Something went wrong. Please try again.'))
+  .finally(() => { if (btnEl) { btnEl.disabled = false; btnEl.textContent = original; } });
+};
+// Service worker: PWA/offline in production only. On localhost it fights
+// `php artisan serve` (one request at a time → connection-refused under load),
+// which makes the SW serve stale cached pages/CSS — so in dev we actively
+// unregister it and purge its caches instead.
+if ('serviceWorker' in navigator) {
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (isLocal) {
+    navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); });
+    if (window.caches) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); });
+  } else {
+    window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+  }
+}
 </script>
 @stack('scripts')
 </body>

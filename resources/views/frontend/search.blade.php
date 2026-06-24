@@ -57,7 +57,7 @@
         </div>
         <div class="cr-thumb" style="background:{{ $a->cover_bg }}">
           @if($a->cover_image)<img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
-          @else {{ $a->cover_emoji }} @endif
+          @else <x-cover-placeholder :article="$a" /> @endif
         </div>
       </a>
       @endforeach

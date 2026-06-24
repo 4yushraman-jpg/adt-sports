@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Article, Category, Setting, User};
+use App\Models\{Article, Category, Setting, Tag, User};
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class FrontendController extends Controller
 {
@@ -39,7 +40,7 @@ class FrontendController extends Controller
 
     public function article(string $slug)
     {
-        $article = Article::with(['category','author'])
+        $article = Article::with(['category','author','tags'])
             ->where('slug', $slug)->firstOrFail();
 
         // Only publicly-visible posts (published + past publish date) are reachable
@@ -57,9 +58,10 @@ class FrontendController extends Controller
         $next     = $article->nextArticle();
         $trending = Article::with('category')->published()
             ->orderByDesc('views')->where('id','!=',$article->id)->limit(5)->get();
+        $comments = $article->comments()->approved()->latest()->get();
 
         return view('frontend.article', array_merge($this->shared(), compact(
-            'article','related','prev','next','trending'
+            'article','related','prev','next','trending','comments'
         )));
     }
 
@@ -74,6 +76,35 @@ class FrontendController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    /**
+     * Toggle a like for the article. Like the view beacon, this is decoupled
+     * from the (cached) page: it's a POST, never cached, identified by a
+     * long-lived per-browser cookie so a visitor likes an article at most once.
+     */
+    public function like(Request $request, Article $article)
+    {
+        abort_unless($article->isPublished(), 404);
+
+        $fingerprint = $this->visitorFingerprint($request);
+        $result      = $article->toggleLike($fingerprint);
+
+        return response()->json($result)->cookie(
+            'adt_uid', $fingerprint, 60 * 24 * 365, null, null, $request->secure(), true
+        );
+    }
+
+    /** Stable per-browser id from a signed-ish cookie; minted on first use. */
+    private function visitorFingerprint(Request $request): string
+    {
+        $uid = (string) $request->cookie('adt_uid', '');
+
+        if (! preg_match('/^[a-f0-9\-]{16,64}$/i', $uid)) {
+            $uid = (string) Str::uuid();
+        }
+
+        return $uid;
     }
 
     public function category(string $slug)
@@ -111,12 +142,13 @@ class FrontendController extends Controller
         )));
     }
 
-    public function tag(string $tag)
+    public function tag(Tag $tag)
     {
         $perPage  = (int) Setting::get('articles_per_page', 10);
         $articles = Article::with(['category','author'])
-            ->published()->whereJsonContains('tags', $tag)
-            ->latest('published_at')->paginate($perPage);
+            ->published()
+            ->whereHas('tags', fn ($q) => $q->whereKey($tag->id))
+            ->latest('published_at')->paginate($perPage)->withQueryString();
 
         // Avoid thin/empty tag pages being indexed.
         abort_if($articles->total() === 0, 404);

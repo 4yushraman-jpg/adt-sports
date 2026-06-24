@@ -16,7 +16,7 @@
     $siteName    = $settings['site_name'] ?? 'ADT Sports';
     $articleImg  = $article->cover_image
         ? (\Illuminate\Support\Str::startsWith($article->cover_image, ['http://','https://']) ? $article->cover_image : url($article->cover_image))
-        : url('/public/uploads/logo.png');
+        : url('/uploads/logo.png');
     $publishedAt = ($article->published_at ?? $article->created_at)?->toAtomString();
     $modifiedAt  = ($article->updated_at ?? $article->published_at ?? $article->created_at)?->toAtomString();
 
@@ -38,14 +38,14 @@
         'publisher'        => [
             '@type' => 'Organization',
             'name'  => $siteName,
-            'logo'  => ['@type' => 'ImageObject', 'url' => url('/public/uploads/logo.png')],
+            'logo'  => ['@type' => 'ImageObject', 'url' => url('/uploads/logo.png')],
         ],
     ];
     if ($article->category) {
         $blogPosting['articleSection'] = $article->category->name;
     }
-    if (is_array($article->tags) && count($article->tags)) {
-        $blogPosting['keywords'] = implode(', ', $article->tags);
+    if ($article->tags->isNotEmpty()) {
+        $blogPosting['keywords'] = $article->tags->pluck('name')->implode(', ');
     }
 
     $crumbs = [['name' => 'Home', 'item' => url('/')]];
@@ -81,11 +81,20 @@
 @if($article->category)
 <meta property="article:section" content="{{ $article->category->name }}">
 @endif
-@if(is_array($article->tags))
 @foreach($article->tags as $tag)
-<meta property="article:tag" content="{{ $tag }}">
+<meta property="article:tag" content="{{ $tag->name }}">
 @endforeach
-@endif
+@endpush
+
+@push('styles')
+<style>
+.share-row .share-btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+  padding:7px 12px;border-radius:8px;border:1px solid var(--line,#2a2118);background:var(--card);
+  color:var(--ink);cursor:pointer;text-decoration:none;transition:transform .08s,border-color .15s}
+.share-row .share-btn:hover{transform:translateY(-1px);border-color:var(--brand)}
+#likeBtn[aria-pressed="true"]{border-color:#e0245e}
+#likeBtn[aria-pressed="true"] .fa-heart{color:#e0245e}
+</style>
 @endpush
 
 @section('content')
@@ -93,13 +102,13 @@
 
   {{-- ── MAIN ARTICLE ─────────────────────────────────────── --}}
   <article class="article-main">
-    <a href="{{ route('home') }}" class="back-btn">← Back to Home</a>
+    <a href="{{ route('home') }}" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Home</a>
 
     <div class="art-hero-img" style="background:{{ $article->cover_bg }}">
       @if($article->cover_image)
         <x-responsive-image :src="$article->cover_image" :alt="$article->title" eager />
       @else
-        <span style="position:relative;z-index:1">{{ $article->cover_emoji }}</span>
+        <x-cover-placeholder :article="$article" />
       @endif
     </div>
 
@@ -129,16 +138,30 @@
         <div class="byline-info">{{ $article->formatted_date }} · {{ $article->read_time }} read · {{ number_format($article->views) }} views</div>
       </div>
       <div class="byline-actions">
-        <button class="action-btn" onclick="shareArticle()" title="Share">📤</button>
-        <button class="action-btn" onclick="cycleFontSize()" title="Adjust font size">Aa</button>
+        <button class="action-btn" id="likeBtn" onclick="toggleLike()" title="Like this article" aria-pressed="false" aria-label="Like this article"><i class="fa-regular fa-heart" id="likeIcon"></i> <span id="likeCount">{{ number_format($article->likes) }}</span></button>
+        <button class="action-btn" onclick="shareArticle()" title="Share" aria-label="Share this article"><i class="fa-solid fa-arrow-up-from-bracket"></i></button>
+        <button class="action-btn" onclick="cycleFontSize()" title="Adjust font size" aria-label="Adjust font size"><i class="fa-solid fa-text-height"></i></button>
       </div>
     </div>
 
+    {{-- Social share --}}
+    @php
+      $shareUrl  = route('article', $article->slug);
+      $shareText = rawurlencode($article->title);
+      $shareLink = rawurlencode($shareUrl);
+    @endphp
+    <div class="share-row" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px">
+      <a class="share-btn" href="https://wa.me/?text={{ $shareText }}%20{{ $shareLink }}" target="_blank" rel="noopener" aria-label="Share on WhatsApp"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
+      <a class="share-btn" href="https://twitter.com/intent/tweet?url={{ $shareLink }}&text={{ $shareText }}" target="_blank" rel="noopener" aria-label="Share on X"><i class="fa-brands fa-x-twitter"></i> Post</a>
+      <a class="share-btn" href="https://www.facebook.com/sharer/sharer.php?u={{ $shareLink }}" target="_blank" rel="noopener" aria-label="Share on Facebook"><i class="fa-brands fa-facebook"></i> Share</a>
+      <button class="share-btn" type="button" onclick="copyArticleLink()" aria-label="Copy link"><i class="fa-solid fa-link"></i> Copy link</button>
+    </div>
+
     {{-- Tags --}}
-    @if($article->tags && count($article->tags))
+    @if($article->tags->isNotEmpty())
     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:28px">
       @foreach($article->tags as $tag)
-        <a href="{{ route('tag', $tag) }}" class="tag" style="font-size:11px">{{ $tag }}</a>
+        <a href="{{ route('tag', $tag) }}" class="tag" style="font-size:11px">{{ $tag->name }}</a>
       @endforeach
     </div>
     @endif
@@ -205,7 +228,7 @@
             @if($r->cover_image)
               <x-responsive-image :src="$r->cover_image" :alt="$r->title" style="width:100%;height:100%;object-fit:cover" />
             @else
-              {{ $r->cover_emoji }}
+              <x-cover-placeholder :article="$r" />
             @endif
           </div>
           @if($r->category)
@@ -218,6 +241,94 @@
       </div>
     </div>
     @endif
+
+    {{-- ── COMMENTS ─────────────────────────────────────────── --}}
+    <section class="comments-section" id="comments" style="margin-top:40px">
+      <div class="sec-hd">
+        <div class="sec-hd-left">
+          <div class="sec-hd-bar"></div>
+          <span class="sec-hd-label">Comments ({{ $comments->count() }})</span>
+        </div>
+      </div>
+
+      @if(request('comment') === 'pending')
+        <div class="comment-note" role="status" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(22,128,60,.12);border:1px solid rgba(22,128,60,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-circle-check" style="color:#16803c"></i> Thanks! Your comment has been submitted and is awaiting moderation.
+        </div>
+      @elseif(request('comment') === 'check')
+        <div class="comment-note" role="status" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(212,66,10,.1);border:1px solid rgba(212,66,10,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-envelope" style="color:var(--brand)"></i> Check your inbox — we've emailed you a link to confirm your email. Click it to start commenting.
+        </div>
+      @elseif(request('comment') === 'error')
+        <div class="comment-note" role="alert" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-circle-exclamation" style="color:#e0245e"></i> Please check your comment (under 5000 characters), then try again.
+        </div>
+      @elseif(request('comment') === 'subscribe')
+        <div class="comment-note" role="alert" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-circle-exclamation" style="color:#e0245e"></i> Please subscribe below before commenting.
+        </div>
+      @elseif(request('comment') === 'expired')
+        <div class="comment-note" role="alert" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-circle-exclamation" style="color:#e0245e"></i> That confirmation link has already been used or expired. Subscribe again to get a new one.
+        </div>
+      @elseif(request('comment') === 'mailfail')
+        <div class="comment-note" role="alert" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3);font-size:13.5px;color:var(--ink)">
+          <i class="fa-solid fa-circle-exclamation" style="color:#e0245e"></i> We couldn't send the confirmation email just now. Please try again in a moment.
+        </div>
+      @endif
+
+      <div class="comment-list" style="margin:18px 0">
+        @forelse($comments as $comment)
+          <div class="comment" style="padding:14px 0;border-bottom:1px solid var(--line,#2a2118)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <strong style="font-size:14px;color:var(--ink)">{{ $comment->author_name }}</strong>
+              <span style="font-size:11px;color:var(--ink3)">{{ $comment->created_at->format('d M Y') }}</span>
+            </div>
+            <div class="comment-body" style="font-size:14px;line-height:1.6;color:var(--ink2)">{!! $comment->body !!}</div>
+          </div>
+        @empty
+          <p style="font-size:13.5px;color:var(--ink3)">Be the first to comment.</p>
+        @endforelse
+      </div>
+
+      {{-- Subscribe gate (shown to visitors who haven't subscribed). JS hides this
+           and reveals the comment box once the adt_commenter_name cookie is set. --}}
+      <div id="commentGate" class="comment-gate" style="margin-top:8px;padding:18px;border:1px solid var(--border,#2a2118);border-radius:12px;background:var(--card)">
+        <div style="font-family:var(--display);font-size:17px;font-weight:700;color:var(--ink);margin-bottom:4px">
+          <i class="fa-regular fa-comments" style="color:var(--brand)"></i> Join the conversation
+        </div>
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px">Subscribe once to comment — we'll email you a link to confirm. You'll also get our Kabaddi newsletter, unsubscribe anytime.</p>
+        <form method="POST" action="{{ route('article.commenter.subscribe', $article) }}">
+          @csrf
+          {{-- Honeypot: hidden from real users; non-semantic name to dodge autofill --}}
+          <input type="text" name="hp_url" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <input type="text" name="name" placeholder="Your name" required maxlength="80" aria-label="Your name"
+                   style="flex:1;min-width:180px;background:var(--bg2,#fff);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink)">
+            <input type="email" name="email" placeholder="Your email" required maxlength="255" aria-label="Your email"
+                   style="flex:1;min-width:180px;background:var(--bg2,#fff);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink)">
+          </div>
+          <button type="submit" class="btn-sub" style="border:none;cursor:pointer">Subscribe to comment →</button>
+        </form>
+      </div>
+
+      {{-- Comment box (revealed by JS for identified/subscribed visitors). --}}
+      <div id="commentBox" style="display:none;margin-top:8px">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:8px">
+          Commenting as <strong id="commenterName" style="color:var(--ink)"></strong>
+          · <form method="POST" action="{{ route('article.commenter.forget', $article) }}" style="display:inline">@csrf<button type="submit" style="background:none;border:0;color:var(--brand);font-size:13px;cursor:pointer;padding:0">not you?</button></form>
+        </p>
+        <form method="POST" action="{{ route('article.comments.store', $article) }}" class="comment-form">
+          @csrf
+          {{-- Honeypot: hidden from real users; non-semantic name to dodge autofill --}}
+          <input type="text" name="hp_url" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+          <textarea name="body" rows="4" placeholder="Add a comment…" required maxlength="5000" aria-label="Comment"
+                    style="width:100%;background:var(--card);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink);resize:vertical"></textarea>
+          <p style="font-size:11.5px;color:var(--ink3);margin:6px 0 10px">Comments are moderated before they appear.</p>
+          <button type="submit" class="btn-sub" style="border:none;cursor:pointer">Post comment →</button>
+        </form>
+      </div>
+    </section>
   </article>
 
   {{-- ── ARTICLE SIDEBAR ─────────────────────────────────── --}}
@@ -225,17 +336,6 @@
     <div class="art-sidebar-sticky">
 
       {{-- Newsletter --}}
-      <div class="widget widget-nl" style="margin-bottom:22px">
-        <div class="sec-hd" style="border-bottom-color:rgba(255,255,255,.1);margin-bottom:12px">
-          <div class="sec-hd-left">
-            <div class="sec-hd-bar"></div>
-            <span class="sec-hd-label" style="color:#F0EBE5">Daily Digest</span>
-          </div>
-        </div>
-        <p class="nl-desc" style="font-size:13px">Top Kabaddi stories straight to your inbox — free.</p>
-        <input type="email" class="nl-input" placeholder="your@email.com" id="sideNlEmail">
-        <button class="nl-btn" onclick="subscribeSide()">Subscribe →</button>
-      </div>
 
       {{-- More Stories --}}
       @if($trending->count())
@@ -252,7 +352,7 @@
             @if($t->cover_image)
               <x-responsive-image :src="$t->cover_image" :alt="$t->title" style="width:100%;height:100%;object-fit:cover" />
             @else
-              {{ $t->cover_emoji }}
+              <x-cover-placeholder :article="$t" />
             @endif
           </div>
           <div>
@@ -272,6 +372,30 @@
 
 @push('scripts')
 <script>
+// The comment notice is server-rendered from ?comment=pending|error (cache-safe).
+// Strip it from the URL after first paint so a reload/back doesn't keep showing it.
+if (location.search.includes('comment=')) {
+  const u = new URL(location.href);
+  u.searchParams.delete('comment');
+  history.replaceState(null, '', u.pathname + (u.search || '') + '#comments');
+}
+
+// Subscribe-gate ↔ comment-box toggle. The page is full-page cached, so this is
+// personalised client-side from the readable adt_commenter_name cookie.
+(function () {
+  const match = document.cookie.match(/(?:^|;\s*)adt_commenter_name=([^;]*)/);
+  let name = '';
+  try { name = match ? decodeURIComponent(match[1]) : ''; } catch (e) { name = ''; }
+  const gate = document.getElementById('commentGate');
+  const box  = document.getElementById('commentBox');
+  if (name && gate && box) {
+    gate.style.display = 'none';
+    box.style.display = 'block';
+    const el = document.getElementById('commenterName');
+    if (el) el.textContent = name;
+  }
+})();
+
 const fontSizes = ['16px','18px','20px'];
 let fsIdx = 1;
 function cycleFontSize() {
@@ -282,14 +406,40 @@ function shareArticle() {
   if (navigator.share) {
     navigator.share({ title: '{{ addslashes($article->title) }}', url: window.location.href });
   } else {
-    navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied to clipboard!'));
+    copyArticleLink();
   }
 }
-function subscribeSide() {
-  const e = document.getElementById('sideNlEmail').value;
-  if (!e || !e.includes('@')) { alert('Please enter a valid email address.'); return; }
-  alert('✅ Subscribed! You\'ll receive the Daily Digest soon.');
-  document.getElementById('sideNlEmail').value = '';
+function copyArticleLink() {
+  navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied to clipboard!'));
 }
+
+// ── Likes ─────────────────────────────────────────────
+const LIKE_KEY = 'liked-{{ $article->id }}';
+function paintLike(liked) {
+  const btn = document.getElementById('likeBtn');
+  const icon = document.getElementById('likeIcon');
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+  if (icon) icon.className = liked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+}
+function toggleLike() {
+  const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const btn = document.getElementById('likeBtn');
+  if (btn) btn.disabled = true;
+  fetch(@json(route('article.like', $article)), {
+    method: 'POST',
+    headers: {'Accept':'application/json','X-CSRF-TOKEN':token},
+  })
+  .then(r => r.ok ? r.json() : Promise.reject(r))
+  .then(d => {
+    document.getElementById('likeCount').textContent = new Intl.NumberFormat().format(d.likes);
+    paintLike(d.liked);
+    try { localStorage.setItem(LIKE_KEY, d.liked ? '1' : '0'); } catch (e) {}
+  })
+  .catch(() => {})
+  .finally(() => { if (btn) btn.disabled = false; });
+}
+// Reflect the visitor's persisted like state on the (cached) page.
+try { if (localStorage.getItem(LIKE_KEY) === '1') paintLike(true); } catch (e) {}
 </script>
 @endpush

@@ -49,6 +49,8 @@ class SecurityHeaders
             "base-uri 'self'",
             "form-action 'self'",
             "frame-ancestors 'none'",
+            // We may embed video from these hosts only (see config/purifier.php).
+            "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
             "object-src 'none'",
             // Cover images may be remote https URLs; uploads are same-origin.
             "img-src 'self' data: https:",
