@@ -96,6 +96,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         // Comment moderation — full administrators only
         Route::get('/comments',                  [AdminCommentController::class, 'index'])->name('comments.index');
         Route::put('/comments/{comment}/approve',[AdminCommentController::class, 'approve'])->name('comments.approve');
+        Route::put('/comments/{comment}/hide',   [AdminCommentController::class, 'hide'])->name('comments.hide');
         Route::delete('/comments/{comment}',     [AdminCommentController::class, 'destroy'])->name('comments.destroy');
 
         // Users

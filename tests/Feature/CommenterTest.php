@@ -215,6 +215,57 @@ class CommenterTest extends TestCase
         $this->assertSame('Real Name', $sub->fresh()->name);
     }
 
+    public function test_returning_subscriber_can_request_a_link_with_email_only(): void
+    {
+        Mail::fake();
+        $article = Article::factory()->published()->create();
+        Subscriber::create(['email' => 'back@example.com', 'name' => 'Back', 'verified_at' => now(), 'created_at' => now()]);
+
+        // No name — they're already verified, so the gate must not demand it.
+        $this->post($this->subscribeUrl($article), ['email' => 'back@example.com'])
+            ->assertRedirect(route('article', $article->slug) . '?comment=check#comments');
+
+        Mail::assertQueued(CommenterConfirmation::class, fn ($m) => $m->hasTo('back@example.com'));
+    }
+
+    public function test_new_subscriber_must_provide_a_name(): void
+    {
+        Mail::fake();
+        $article = Article::factory()->published()->create();
+
+        // Unknown email + no name -> rejected (the name shows on their comments).
+        $this->post($this->subscribeUrl($article), ['email' => 'fresh@example.com'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(0, Subscriber::count());
+        Mail::assertNothingQueued();
+    }
+
+    public function test_new_subscriber_whitespace_only_name_is_rejected(): void
+    {
+        Mail::fake();
+        $article = Article::factory()->published()->create();
+
+        // A spaces-only name must not satisfy 'required' (would be a blank author).
+        $this->post($this->subscribeUrl($article), ['name' => '   ', 'email' => 'ws@example.com'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(0, Subscriber::count());
+        Mail::assertNothingQueued();
+    }
+
+    public function test_subscribe_returns_json_for_an_ajax_request(): void
+    {
+        Mail::fake();
+        $article = Article::factory()->published()->create();
+
+        $this->postJson($this->subscribeUrl($article), ['name' => 'Ajax', 'email' => 'ajax@example.com'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        Mail::assertQueued(CommenterConfirmation::class);
+    }
+
     public function test_sign_out_forgets_the_identity_cookie(): void
     {
         $article = Article::factory()->published()->create();

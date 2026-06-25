@@ -29,12 +29,14 @@ class SubscriberController extends Controller
             return $this->checkInbox($request);
         }
 
+        // Trim first so a whitespace-only name can't satisfy 'required'.
+        $request->merge(['name' => trim((string) $request->input('name'))]);
         $data = $request->validate([
             'name'   => ['required', 'string', 'max:80'],
             'email'  => ['required', 'email', 'max:255'],
             // Allowlist the source — it lands in a CSV export, so reject anything
             // that could be a spreadsheet formula payload.
-            'source' => ['nullable', 'in:home,article,site,footer'],
+            'source' => ['nullable', 'in:home,article,site,footer,modal'],
         ]);
         $email = Str::lower($data['email']);
 
@@ -127,7 +129,7 @@ class SubscriberController extends Controller
             'siteName'  => Setting::get('site_name', 'ADT Sports'),
             'confirmed' => true,
         ]);
-        foreach (CommenterIdentity::issue($subscriber->name ?: 'Reader', $subscriber->email) as $cookie) {
+        foreach (CommenterIdentity::issue(trim((string) $subscriber->name) ?: 'Reader', $subscriber->email) as $cookie) {
             $response->withCookie($cookie);
         }
 
@@ -136,7 +138,7 @@ class SubscriberController extends Controller
 
     private function checkInbox(Request $request, ?string $message = null)
     {
-        $message ??= "📧 Almost there — check your inbox to confirm your subscription.";
+        $message ??= "📧 Almost there — check your inbox (and spam) to confirm. We send at most " . SubscribeThrottle::MAX_PER_DAY . " emails a day to an address.";
 
         return $request->expectsJson() || $request->ajax()
             ? response()->json(['ok' => true, 'message' => $message])

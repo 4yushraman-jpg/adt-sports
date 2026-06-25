@@ -81,34 +81,23 @@
         @endif
       </div>
 
-      {{-- Article feed --}}
-      @forelse($articles->take(5) as $a)
-      <a href="{{ route('article', $a->slug) }}" class="card-row" style="text-decoration:none;display:grid">
-        <div>
-          <span class="cr-cat" style="{{ $a->category ? 'color:'.$a->category->color : '' }}">
-            {{ $a->category?->name ?? 'Article' }}
-          </span>
-          <h2 class="cr-title">{{ $a->title }}</h2>
-          @if($a->excerpt)
-            <div class="cr-excerpt">{{ $a->excerpt }}</div>
-          @endif
-          <div class="cr-meta">
-            <span>{{ $a->author?->name ?? 'ADT Sports' }}</span>
-            <span class="sep"></span>
-            <span>{{ $a->formatted_date }}</span>
-            <span class="sep"></span>
-            <span>{{ $a->read_time }} read</span>
-          </div>
-        </div>
-        <div class="cr-thumb" style="background:{{ $a->cover_bg }}">
-          @if($a->cover_image)
-            <img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
-          @else
-            <x-cover-placeholder :article="$a" />
-          @endif
-        </div>
-      </a>
+      {{-- Article feed. The first 5 render as large rows; the featured strip below
+           pulls out the next 3 as highlights. Anything left on this page renders as
+           rows too, so no article is ever dropped — the old "Must Read" grid only
+           appeared at count >= 11, which never happens at perPage = 10, silently
+           hiding items 9-10 of the page. --}}
+      @php
+        $feedItems  = $articles->take(5);
+        $stripItems = $articles->count() >= 8 ? $articles->slice(5, 3) : collect();
+        $restItems  = $articles->slice($feedItems->count() + $stripItems->count());
+      @endphp
+      @forelse($feedItems as $a)
+      @include('frontend.partials.article_row', ['a' => $a])
       @empty
+      {{-- Only a real empty state: an empty category filter, or a site with no
+           articles at all. When ≤4 articles exist they're all in the hero above,
+           so the feed is legitimately empty — don't claim "no articles found". --}}
+      @if($catSlug || ! $heroLead)
       <div style="text-align:center;padding:64px 20px;color:var(--ink3)">
         <div style="font-size:44px;margin-bottom:14px">📭</div>
         <p style="font-size:15px">No articles found{{ $catSlug ? ' in this category' : '' }}.</p>
@@ -116,13 +105,24 @@
           <a href="{{ route('home') }}" style="color:var(--brand);font-size:14px;margin-top:10px;display:inline-block">← Back to all articles</a>
         @endif
       </div>
+      @endif
       @endforelse
 
-      {{-- Feature strip (articles 6-8) — only when it can show a full row of 3,
-           otherwise a lone card looks stray. --}}
-      @if($articles->count() >= 8)
+      {{-- Page items the featured strip doesn't pull out — kept as rows so nothing
+           is lost (the strip only shows when it can fill a full row of 3). --}}
+      @foreach($restItems as $a)
+      @include('frontend.partials.article_row', ['a' => $a])
+      @endforeach
+
+      {{-- Insertion point for "Load more": freshly fetched articles are appended
+           here, so the featured strip below shifts down to stay last. --}}
+      <div data-load-more-anchor hidden></div>
+
+      {{-- Feature strip (next 3 stories) — only when it can show a full row of 3,
+           otherwise a lone card looks stray (those items render as rows above). --}}
+      @if($stripItems->isNotEmpty())
       <div class="feature-strip">
-        @foreach($articles->slice(5, 3) as $a)
+        @foreach($stripItems as $a)
         <a href="{{ route('article', $a->slug) }}" class="fs-item" style="text-decoration:none">
           <div class="fs-cat">{{ $a->breaking ? '🔴 Breaking' : ($a->category?->name ?? 'Article') }}</div>
           <h3 class="fs-title">{{ $a->title }}</h3>
@@ -132,41 +132,8 @@
       </div>
       @endif
 
-      {{-- Must Read grid (articles 9-11) — only when it can fill all 3 cells. --}}
-      @if($articles->count() >= 11)
-      <div class="sec-hd">
-        <div class="sec-hd-left">
-          <div class="sec-hd-bar"></div>
-          <span class="sec-hd-label">Must Read</span>
-        </div>
-      </div>
-      <div class="cards-grid">
-        @foreach($articles->slice(8, 3) as $a)
-        <a href="{{ route('article', $a->slug) }}" class="card-box" style="text-decoration:none">
-          <div class="cb-thumb" style="background:{{ $a->cover_bg }}">
-            @if($a->cover_image)
-              <img src="{{ $a->cover_image }}" style="width:100%;height:100%;object-fit:cover" alt="{{ $a->title }}" loading="lazy" decoding="async">
-            @else
-              <x-cover-placeholder :article="$a" />
-            @endif
-          </div>
-          <span class="cb-cat" style="{{ $a->category ? 'color:'.$a->category->color : '' }}">
-            {{ $a->category?->name ?? '' }}
-          </span>
-          <h3 class="cb-title">{{ $a->title }}</h3>
-          @if($a->excerpt)<div class="cb-excerpt">{{ $a->excerpt }}</div>@endif
-          <div class="cb-meta">{{ $a->formatted_date }} · {{ $a->read_time }} read</div>
-        </a>
-        @endforeach
-      </div>
-      @endif
-
-      {{-- Pagination --}}
-      @if($articles->hasPages())
-      <div class="pagination-wrap">
-        {{ $articles->links() }}
-      </div>
-      @endif
+      {{-- Load more --}}
+      @include('frontend.partials.load_more', ['paginator' => $articles])
 
     </main>
 

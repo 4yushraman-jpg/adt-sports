@@ -121,7 +121,8 @@
   <div class="subscribe-card">
     <button class="sm-close" type="button" aria-label="Close" onclick="closeSubscribe()">✕</button>
     <h3 class="sm-title">Join the Daily Digest</h3>
-    <p class="sm-desc">Top Kabaddi stories straight to your inbox — free. We'll email a link to confirm; unsubscribe anytime.</p>
+    <p class="sm-desc">Top Kabaddi stories straight to your inbox — free. We'll email a link to confirm; unsubscribe anytime. We send at most {{ \App\Support\SubscribeThrottle::MAX_PER_DAY }} emails a day.</p>
+    <div class="nl-note" role="status" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.45"></div>
     <input type="text" class="nl-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
     <input type="text" class="nl-input nl-name" placeholder="Your name" maxlength="80" autocomplete="name">
     <input type="email" class="nl-input nl-email" placeholder="your@email.com" autocomplete="email">
@@ -283,6 +284,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.getElement
 // "Subscribe": open the subscribe dialog from anywhere.
 window.openSubscribe=function(){
   var m=document.getElementById('subscribeModal'); if(!m) return;
+  var note=m.querySelector('.nl-note'); if(note){ note.style.display='none'; note.textContent=''; } // clear any prior result
   m.classList.add('open');
   var n=m.querySelector('.nl-name'); if(n) setTimeout(function(){n.focus()},80);
 };
@@ -309,10 +311,24 @@ window.adtSubscribe = function (btnEl, source) {
   const nameEl = root.querySelector('.nl-name');
   const emailEl = root.querySelector('.nl-email');
   const hpEl = root.querySelector('.nl-hp');
+  const noteEl = root.querySelector('.nl-note');
   const name = nameEl ? (nameEl.value || '').trim() : '';
   const email = (emailEl ? emailEl.value : '').trim();
-  if (!name) { alert('Please enter your name.'); return; }
-  if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+
+  // Inline feedback in the card (already subscribed, check inbox, errors) —
+  // no browser alert(). Falls back to alert() if a card has no note element.
+  function note(ok, msg) {
+    if (!noteEl) { alert(msg); return; }
+    noteEl.style.display = 'block';
+    noteEl.style.background = ok ? 'rgba(22,128,60,.14)' : 'rgba(224,36,94,.12)';
+    noteEl.style.border = '1px solid ' + (ok ? 'rgba(22,128,60,.4)' : 'rgba(224,36,94,.4)');
+    noteEl.style.color = 'var(--ink)';
+    noteEl.textContent = msg; // server message already carries its own emoji
+  }
+
+  if (!name) { note(false, 'Please enter your name.'); if (nameEl) nameEl.focus(); return; }
+  if (!email || !email.includes('@')) { note(false, 'Please enter a valid email address.'); if (emailEl) emailEl.focus(); return; }
+
   const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const original = btnEl ? btnEl.textContent : '';
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Subscribing…'; }
@@ -321,9 +337,14 @@ window.adtSubscribe = function (btnEl, source) {
     headers: {'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':token},
     body: JSON.stringify({name, email, hp_url: hpEl ? hpEl.value : '', source: source || 'site'})
   })
-  .then(r => r.ok ? r.json() : Promise.reject(r))
-  .then(d => { alert(d.message || '✅ Subscribed!'); if (nameEl) nameEl.value = ''; if (emailEl) emailEl.value = ''; if (window.closeSubscribe) closeSubscribe(); })
-  .catch(() => alert('Something went wrong. Please try again.'))
+  // Read the JSON body whatever the status, so the server's message (already
+  // subscribed, rate-limited, mail failure, validation) is shown — not a blanket error.
+  .then(r => r.json().then(d => ({ ok: r.ok, d })).catch(() => ({ ok: r.ok, d: {} })))
+  .then(({ ok, d }) => {
+    note(ok, d.message || (ok ? "You're all set!" : 'Something went wrong. Please try again.'));
+    if (ok) { if (nameEl) nameEl.value = ''; if (emailEl) emailEl.value = ''; }
+  })
+  .catch(() => note(false, 'Something went wrong. Please try again.'))
   .finally(() => { if (btnEl) { btnEl.disabled = false; btnEl.textContent = original; } });
 };
 // Service worker: PWA/offline in production only. On localhost it fights

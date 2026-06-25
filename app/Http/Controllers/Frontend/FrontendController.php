@@ -22,14 +22,32 @@ class FrontendController extends Controller
         $perPage   = (int) Setting::get('articles_per_page', 10);
         $catSlug   = $request->get('category');
 
-        $query = Article::with(['category','author'])->published()->latest('published_at');
-        if ($catSlug) $query->inCategory($catSlug);
-
-        $articles  = $query->paginate($perPage)->withQueryString();
+        // The hero block (lead + 3 stacked) is showcased separately at the top, so
+        // exclude those articles from the feed to avoid showing the same stories
+        // twice. Computed before the feed query so the exclusion stays consistent
+        // across "Load more" pages (which re-enter this method with ?partial=1).
         $heroLead  = Article::with(['category','author'])->published()->where('featured', true)->latest('published_at')->first()
                      ?? Article::with(['category','author'])->published()->latest('published_at')->first();
         $heroStack = Article::with('category')->published()->latest('published_at')
                      ->where('id', '!=', $heroLead?->id ?? 0)->limit(3)->get();
+        $heroIds   = $heroStack->pluck('id')->push($heroLead?->id)->filter()->all();
+
+        // Exclude the hero set only on the unfiltered homepage, where the hero and
+        // feed draw from the same global newest list. Under ?category= the hero stays
+        // a global showcase while the feed is category-specific, so excluding there
+        // could hide a category's own article from its filtered list.
+        $query = Article::with(['category','author'])->published()
+            ->when(! $catSlug, fn ($q) => $q->whereNotIn('id', $heroIds))
+            ->latest('published_at');
+        if ($catSlug) $query->inCategory($catSlug);
+
+        $articles  = $query->paginate($perPage)->withQueryString();
+
+        // "Load more" returns just the next page's rows (skips trending/featured + layout).
+        if ($request->boolean('partial')) {
+            return view('frontend.partials.feed_fragment', compact('articles'));
+        }
+
         $trending  = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
         $featured  = Article::with(['category','author'])->published()->where('featured',true)->latest('published_at')->limit(3)->get();
 
@@ -107,7 +125,7 @@ class FrontendController extends Controller
         return $uid;
     }
 
-    public function category(string $slug)
+    public function category(Request $request, string $slug)
     {
         $category = Category::where('slug',$slug)->firstOrFail();
         $perPage  = (int) Setting::get('articles_per_page', 10);
@@ -117,7 +135,12 @@ class FrontendController extends Controller
                 $q->where('category_id', $category->id) // primary
                   ->orWhereHas('categories', fn ($c) => $c->where('categories.id', $category->id)); // additional
             })
-            ->latest('published_at')->paginate($perPage);
+            ->latest('published_at')->paginate($perPage)->withQueryString();
+
+        if ($request->boolean('partial')) {
+            return view('frontend.partials.feed_fragment', ['articles' => $articles, 'rowCat' => $category]);
+        }
+
         $trending = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
 
         return view('frontend.category', array_merge($this->shared(), compact(
@@ -125,15 +148,19 @@ class FrontendController extends Controller
         )));
     }
 
-    public function author(User $user)
+    public function author(Request $request, User $user)
     {
         $perPage  = (int) Setting::get('articles_per_page', 10);
         $articles = Article::with(['category','author'])
             ->published()->where('author_id', $user->id)
-            ->latest('published_at')->paginate($perPage);
+            ->latest('published_at')->paginate($perPage)->withQueryString();
 
         // Avoid thin/empty author pages being indexed.
         abort_if($articles->total() === 0, 404);
+
+        if ($request->boolean('partial')) {
+            return view('frontend.partials.feed_fragment', ['articles' => $articles, 'hideAuthor' => true]);
+        }
 
         $trending = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
 
@@ -142,7 +169,7 @@ class FrontendController extends Controller
         )));
     }
 
-    public function tag(Tag $tag)
+    public function tag(Request $request, Tag $tag)
     {
         $perPage  = (int) Setting::get('articles_per_page', 10);
         $articles = Article::with(['category','author'])
@@ -152,6 +179,10 @@ class FrontendController extends Controller
 
         // Avoid thin/empty tag pages being indexed.
         abort_if($articles->total() === 0, 404);
+
+        if ($request->boolean('partial')) {
+            return view('frontend.partials.feed_fragment', compact('articles'));
+        }
 
         $trending = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
 
@@ -166,6 +197,11 @@ class FrontendController extends Controller
         $articles = $q
             ? Article::with(['category','author'])->published()->search($q)->latest('published_at')->paginate(15)->withQueryString()
             : collect();
+
+        if ($q && $request->boolean('partial')) {
+            return view('frontend.partials.feed_fragment', compact('articles'));
+        }
+
         $trending = Article::with('category')->published()->orderByDesc('views')->limit(5)->get();
 
         return view('frontend.search', array_merge($this->shared(), compact('articles','q','trending')));

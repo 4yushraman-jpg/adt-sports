@@ -17,19 +17,33 @@ class CommentController extends Controller
         return view('admin.comments.index', compact('pending', 'approved'));
     }
 
+    /** Restore a previously hidden comment back to the public page. */
     public function approve(Comment $comment)
     {
         $comment->update(['approved' => true]);
 
-        // The comment now renders on the (cached) public article page — evict just
-        // that page rather than flushing the whole guest cache.
+        // It's back on the (cached) public article page — evict just that page.
         if ($comment->article) {
             PublicCache::forgetArticle($comment->article);
         }
 
-        ActivityLog::record('comment.approved', $comment, 'Approved a comment by ' . $comment->author_name);
+        ActivityLog::record('comment.approved', $comment, 'Restored a comment by ' . $comment->author_name);
 
-        return back()->with('success', 'Comment approved.');
+        return back()->with('success', "Comment restored — it's live again.");
+    }
+
+    /** Hide a live comment from the public page (reversible — kept for review). */
+    public function hide(Comment $comment)
+    {
+        $comment->update(['approved' => false]);
+
+        if ($comment->article) {
+            PublicCache::forgetArticle($comment->article);
+        }
+
+        ActivityLog::record('comment.hidden', $comment, 'Hid a comment by ' . $comment->author_name);
+
+        return back()->with('success', 'Comment hidden from the public page.');
     }
 
     public function destroy(Comment $comment)

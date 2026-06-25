@@ -10,6 +10,7 @@
     'article.restored'  => ['#16a34a','Article'],
     'article.deleted'   => ['#e0245e','Article'],
     'comment.approved'  => ['#16a34a','Comment'],
+    'comment.hidden'    => ['#d97706','Comment'],
     'comment.deleted'   => ['#e0245e','Comment'],
     'user.invited'      => ['#16a34a','User'],
     'user.created'      => ['#16a34a','User'],

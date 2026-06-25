@@ -45,6 +45,18 @@ class ResponseCacheTest extends TestCase
         $this->assertTrue($profile->shouldCacheRequest(Request::create('/category/x', 'GET')));
     }
 
+    public function test_profile_never_caches_comment_landing_pages(): void
+    {
+        // Post-moderation: ?comment=posted must stay live so the commenter sees
+        // their own just-posted comment, never a prior commenter's cached copy.
+        $profile = new PublicResponseCacheProfile();
+
+        $this->assertFalse($profile->shouldCacheRequest(Request::create('/article/some-slug?comment=posted', 'GET')));
+        $this->assertFalse($profile->shouldCacheRequest(Request::create('/article/some-slug?comment=error', 'GET')));
+        // ...but the bare article URL is still cacheable.
+        $this->assertTrue($profile->shouldCacheRequest(Request::create('/article/some-slug', 'GET')));
+    }
+
     public function test_only_200_responses_are_cacheable(): void
     {
         $profile = new PublicResponseCacheProfile();

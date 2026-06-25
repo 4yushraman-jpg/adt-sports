@@ -254,10 +254,8 @@ nav[aria-label="Pagination"] .pg-dots { border:none;background:none; }
       <div class="nav-section">
         <div class="nav-sec-label">Admin</div>
         @if(auth()->user()->isAdmin())
-        @php($pendingComments = \App\Models\Comment::where('approved', false)->count())
         <a href="{{ route('admin.comments.index') }}" class="nav-item {{ request()->routeIs('admin.comments.*') ? 'active':'' }}">
           <span class="nav-icon"><i class="fa-solid fa-comments"></i></span> Comments
-          @if($pendingComments > 0)<span class="badge badge-admin" style="margin-left:auto">{{ $pendingComments }}</span>@endif
         </a>
         <a href="{{ route('admin.users.index') }}" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active':'' }}">
           <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Team Members

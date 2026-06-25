@@ -29,18 +29,58 @@ class CommentTest extends TestCase
         return $this->call('POST', route('article.comments.store', $article), $data, $cookies, [], ['HTTP_ACCEPT' => 'text/html']);
     }
 
-    public function test_subscribed_visitor_comment_is_stored_unapproved(): void
+    /** Same as comment() but as a fetch()/XHR request expecting a JSON reply. */
+    private function commentAjax(Article $article, array $data, ?array $identity = self::IDENTITY): TestResponse
+    {
+        $this->withoutMiddleware(EncryptCookies::class);
+        $cookies = $identity ? ['adt_commenter' => json_encode($identity)] : [];
+
+        return $this->call('POST', route('article.comments.store', $article), $data, $cookies, [], [
+            'HTTP_ACCEPT' => 'application/json', 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
+        ]);
+    }
+
+    public function test_subscribed_visitor_comment_goes_live_immediately(): void
     {
         $article = Article::factory()->published()->create();
 
-        $this->comment($article, ['body' => 'Great match coverage!'])->assertRedirect();
+        $this->comment($article, ['body' => 'Great match coverage!'])
+            ->assertRedirect(route('article', $article->slug) . '?comment=posted#comments');
 
+        // Post-moderation: stored approved (visible) on creation, no approval step.
         $this->assertDatabaseHas('comments', [
             'article_id'   => $article->id,
             'author_name'  => 'Sub Scriber',
             'author_email' => 'sub@example.com',
-            'approved'     => false,
+            'approved'     => true,
         ]);
+
+        // ...and it renders on the public article page right away.
+        $this->get(route('article', $article->slug))->assertSee('Great match coverage', false);
+    }
+
+    public function test_ajax_comment_returns_json_with_rendered_html(): void
+    {
+        $article = Article::factory()->published()->create();
+
+        $response = $this->commentAjax($article, ['body' => 'Inline AJAX comment'])
+            ->assertOk()
+            ->assertJson(['ok' => true, 'status' => 'posted', 'count' => 1]);
+
+        // The payload carries the rendered comment so JS can inject it inline.
+        $this->assertStringContainsString('Inline AJAX comment', $response->json('html'));
+        $this->assertStringContainsString('Sub Scriber', $response->json('html'));
+    }
+
+    public function test_ajax_invalid_comment_returns_422_json(): void
+    {
+        $article = Article::factory()->published()->create();
+
+        $this->commentAjax($article, ['body' => str_repeat('a', 5001)])
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'status' => 'error']);
+
+        $this->assertSame(0, $article->comments()->count());
     }
 
     public function test_visitor_without_identity_is_sent_to_the_gate(): void
@@ -95,6 +135,28 @@ class CommentTest extends TestCase
             ->assertOk()
             ->assertSee('APPROVED-MARKER', false)
             ->assertDontSee('PENDING-MARKER', false);
+    }
+
+    public function test_comment_landing_page_is_never_served_stale(): void
+    {
+        // The ?comment=posted page must never be cached, or a later commenter
+        // would land on an earlier commenter's copy and not see their own.
+        config(['responsecache.enabled' => true]);
+        \Spatie\ResponseCache\Facades\ResponseCache::clear();
+
+        $article = Article::factory()->published()->create();
+        Comment::factory()->approved()->create(['article_id' => $article->id, 'body' => '<p>FIRST-COMMENT</p>']);
+
+        // Warm the landing page (would cache it under the old behaviour).
+        $this->get(route('article', $article->slug) . '?comment=posted')
+            ->assertOk()->assertSee('FIRST-COMMENT', false);
+
+        // A new comment arrives WITHOUT a cache bust, to isolate the profile.
+        Comment::factory()->approved()->create(['article_id' => $article->id, 'body' => '<p>SECOND-COMMENT</p>']);
+
+        // Fresh render every time -> the newest comment is visible immediately.
+        $this->get(route('article', $article->slug) . '?comment=posted')
+            ->assertSee('SECOND-COMMENT', false);
     }
 
     public function test_invalid_comment_redirects_to_cache_safe_error_url(): void
@@ -160,6 +222,34 @@ class CommentTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.comments.approve', $comment))
             ->assertRedirect();
+
+        $this->assertTrue($comment->fresh()->approved);
+    }
+
+    public function test_admin_can_hide_a_live_comment(): void
+    {
+        $admin   = User::factory()->admin()->create();
+        $article = Article::factory()->published()->create();
+        $comment = Comment::factory()->approved()->create([
+            'article_id' => $article->id, 'body' => '<p>HIDE-ME-MARKER</p>',
+        ]);
+
+        // Live on the public page first...
+        $this->get(route('article', $article->slug))->assertSee('HIDE-ME-MARKER', false);
+
+        $this->actingAs($admin)->put(route('admin.comments.hide', $comment))->assertRedirect();
+        $this->assertFalse($comment->fresh()->approved);
+
+        // ...then gone after hiding (cache evicted by the hide action).
+        $this->get(route('article', $article->slug))->assertDontSee('HIDE-ME-MARKER', false);
+    }
+
+    public function test_editor_cannot_hide_a_comment(): void
+    {
+        $editor  = User::factory()->editor()->create();
+        $comment = Comment::factory()->approved()->create();
+
+        $this->actingAs($editor)->put(route('admin.comments.hide', $comment))->assertForbidden();
 
         $this->assertTrue($comment->fresh()->approved);
     }

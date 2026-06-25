@@ -2,16 +2,21 @@
 
 namespace App\Notifications;
 
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
  * Sent when an admin invites a new team member. Reuses the password-reset token
  * so the recipient sets their own password via the existing reset form — the
- * admin never knows or handles the password.
+ * admin never knows or handles the password. Queued so the invite email sends
+ * out-of-band (QUEUE_CONNECTION=database + a worker).
  */
-class TeamInvitation extends Notification
+class TeamInvitation extends Notification implements ShouldQueue
 {
+    use Queueable;
+
     public function __construct(
         public string $token,
         public string $inviterName,

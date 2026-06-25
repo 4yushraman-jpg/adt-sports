@@ -94,6 +94,17 @@
 .share-row .share-btn:hover{transform:translateY(-1px);border-color:var(--brand)}
 #likeBtn[aria-pressed="true"]{border-color:#e0245e}
 #likeBtn[aria-pressed="true"] .fa-heart{color:#e0245e}
+/* Stop Chrome's autofill from repainting the comment inputs grey/blue — keep our own bg + text colour */
+#commentGateForm input:-webkit-autofill,
+#commentGateForm input:-webkit-autofill:hover,
+#commentGateForm input:-webkit-autofill:focus,
+#commentGateForm input:-webkit-autofill:active{
+  -webkit-box-shadow:0 0 0 1000px var(--bg2,#fff) inset;
+  box-shadow:0 0 0 1000px var(--bg2,#fff) inset;
+  -webkit-text-fill-color:var(--ink);
+  caret-color:var(--ink);
+  transition:background-color 9999s ease-in-out 0s;
+}
 </style>
 @endpush
 
@@ -126,7 +137,7 @@
     @endif
 
     <div class="art-byline">
-      <div class="byline-av">✍️</div>
+      <div class="byline-av"><i class="fa-solid fa-user-pen"></i></div>
       <div>
         <div class="byline-name">
         @if($article->author)
@@ -176,18 +187,14 @@
     <script>fetch(@json(route('article.hit', $article)), {cache:'no-store'}).catch(function(){});</script>
     @endif
 
-    {{-- About the author (E-E-A-T) --}}
+    {{-- More from this author — the name is already in the byline above, so just
+         the link here (plus the bio if there is one, which isn't redundant). --}}
     @if($article->author)
-    <div class="widget" style="margin-top:36px;display:flex;gap:14px;align-items:flex-start">
-      <div class="byline-av" style="width:46px;height:46px;font-size:18px">✍️</div>
-      <div>
-        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink3);margin-bottom:3px">Written by</div>
-        <a href="{{ route('author', $article->author->id) }}" rel="author" style="font-family:var(--display);font-size:17px;font-weight:700;color:var(--ink)">{{ $article->author->name }}</a>
-        @if($article->author->bio)
-          <p style="font-size:13.5px;line-height:1.6;color:var(--ink2);margin-top:6px">{{ $article->author->bio }}</p>
-        @endif
-        <a href="{{ route('author', $article->author->id) }}" style="font-size:12.5px;font-weight:600;color:var(--brand);margin-top:8px;display:inline-block">More from {{ $article->author->name }} →</a>
-      </div>
+    <div style="margin-top:32px">
+      @if($article->author->bio)
+        <p style="font-size:13.5px;line-height:1.6;color:var(--ink2);margin-bottom:8px">{{ $article->author->bio }}</p>
+      @endif
+      <a href="{{ route('author', $article->author->id) }}" rel="author" style="font-size:14px;font-weight:700;color:var(--brand)">More by {{ $article->author->name }} →</a>
     </div>
     @endif
 
@@ -204,7 +211,7 @@
       @else <span></span> @endif
       @if($next)
         <a href="{{ route('article', $next->slug) }}" rel="next"
-           style="flex:1;min-width:220px;padding:14px 16px;border:1px solid var(--line,#2a2118);border-radius:8px;color:var(--ink);text-align:right">
+           style="flex:1;min-width:220px;padding:14px 16px;border:1px solid var(--line,#2a2118);border-radius:8px;color:var(--ink)">
           <div style="font-size:11px;color:var(--ink3)">Next →</div>
           <div style="font-weight:600;font-size:14px">{{ Str::limit($next->title, 60) }}</div>
         </a>
@@ -247,17 +254,13 @@
       <div class="sec-hd">
         <div class="sec-hd-left">
           <div class="sec-hd-bar"></div>
-          <span class="sec-hd-label">Comments ({{ $comments->count() }})</span>
+          <span class="sec-hd-label">Comments (<span id="commentCount">{{ $comments->count() }}</span>)</span>
         </div>
       </div>
 
-      @if(request('comment') === 'pending')
-        <div class="comment-note" role="status" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(22,128,60,.12);border:1px solid rgba(22,128,60,.3);font-size:13.5px;color:var(--ink)">
-          <i class="fa-solid fa-circle-check" style="color:#16803c"></i> Thanks! Your comment has been submitted and is awaiting moderation.
-        </div>
-      @elseif(request('comment') === 'check')
+      @if(request('comment') === 'check')
         <div class="comment-note" role="status" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(212,66,10,.1);border:1px solid rgba(212,66,10,.3);font-size:13.5px;color:var(--ink)">
-          <i class="fa-solid fa-envelope" style="color:var(--brand)"></i> Check your inbox — we've emailed you a link to confirm your email. Click it to start commenting.
+          <i class="fa-solid fa-envelope" style="color:var(--brand)"></i> Check your inbox (and spam) for the link to start commenting. We send at most {{ \App\Support\SubscribeThrottle::MAX_PER_DAY }} emails a day to an address.
         </div>
       @elseif(request('comment') === 'error')
         <div class="comment-note" role="alert" style="margin:16px 0;padding:12px 14px;border-radius:8px;background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3);font-size:13.5px;color:var(--ink)">
@@ -277,17 +280,14 @@
         </div>
       @endif
 
-      <div class="comment-list" style="margin:18px 0">
+      {{-- Inline feedback for JS submissions (no-JS users get the ?comment= notice above). --}}
+      <div id="commentAjaxNote"></div>
+
+      <div class="comment-list" id="commentList" style="margin:18px 0">
         @forelse($comments as $comment)
-          <div class="comment" style="padding:14px 0;border-bottom:1px solid var(--line,#2a2118)">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <strong style="font-size:14px;color:var(--ink)">{{ $comment->author_name }}</strong>
-              <span style="font-size:11px;color:var(--ink3)">{{ $comment->created_at->format('d M Y') }}</span>
-            </div>
-            <div class="comment-body" style="font-size:14px;line-height:1.6;color:var(--ink2)">{!! $comment->body !!}</div>
-          </div>
+          @include('frontend.partials.comment', ['comment' => $comment])
         @empty
-          <p style="font-size:13.5px;color:var(--ink3)">Be the first to comment.</p>
+          <p id="commentEmpty" style="font-size:13.5px;color:var(--ink3)">Be the first to comment.</p>
         @endforelse
       </div>
 
@@ -297,18 +297,21 @@
         <div style="font-family:var(--display);font-size:17px;font-weight:700;color:var(--ink);margin-bottom:4px">
           <i class="fa-regular fa-comments" style="color:var(--brand)"></i> Join the conversation
         </div>
-        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px">Subscribe once to comment — we'll email you a link to confirm. You'll also get our Kabaddi newsletter, unsubscribe anytime.</p>
-        <form method="POST" action="{{ route('article.commenter.subscribe', $article) }}">
+        <p style="font-size:13px;color:var(--ink2);margin-bottom:12px">Subscribe once to comment — we'll email you a link to confirm. You'll also get our Kabaddi newsletter, unsubscribe anytime. We send at most {{ \App\Support\SubscribeThrottle::MAX_PER_DAY }} emails a day.</p>
+        <div id="gateNote" role="status" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.45"></div>
+        <form method="POST" action="{{ route('article.commenter.subscribe', $article) }}" id="commentGateForm">
           @csrf
           {{-- Honeypot: hidden from real users; non-semantic name to dodge autofill --}}
           <input type="text" name="hp_url" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-            <input type="text" name="name" placeholder="Your name" required maxlength="80" aria-label="Your name"
+            {{-- Name not HTML-required: a returning verified subscriber can sign in with email alone (server enforces it for new subscribers). --}}
+            <input type="text" name="name" placeholder="Your name" maxlength="80" aria-label="Your name"
                    style="flex:1;min-width:180px;background:var(--bg2,#fff);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink)">
             <input type="email" name="email" placeholder="Your email" required maxlength="255" aria-label="Your email"
                    style="flex:1;min-width:180px;background:var(--bg2,#fff);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink)">
           </div>
           <button type="submit" class="btn-sub" style="border:none;cursor:pointer">Subscribe to comment →</button>
+          <p style="font-size:11.5px;color:var(--ink3);margin:10px 0 0">Already subscribed? Enter the same email — we'll send you a quick sign-in link.</p>
         </form>
       </div>
 
@@ -324,7 +327,7 @@
           <input type="text" name="hp_url" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
           <textarea name="body" rows="4" placeholder="Add a comment…" required maxlength="5000" aria-label="Comment"
                     style="width:100%;background:var(--card);border:1px solid var(--border,#2a2118);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink);resize:vertical"></textarea>
-          <p style="font-size:11.5px;color:var(--ink3);margin:6px 0 10px">Comments are moderated before they appear.</p>
+          <p style="font-size:11.5px;color:var(--ink3);margin:6px 0 10px">Comments appear right away. Please keep it respectful — anything abusive may be removed.</p>
           <button type="submit" class="btn-sub" style="border:none;cursor:pointer">Post comment →</button>
         </form>
       </div>
@@ -372,7 +375,7 @@
 
 @push('scripts')
 <script>
-// The comment notice is server-rendered from ?comment=pending|error (cache-safe).
+// The comment notice is server-rendered from ?comment=posted|error (cache-safe).
 // Strip it from the URL after first paint so a reload/back doesn't keep showing it.
 if (location.search.includes('comment=')) {
   const u = new URL(location.href);
@@ -394,6 +397,91 @@ if (location.search.includes('comment=')) {
     const el = document.getElementById('commenterName');
     if (el) el.textContent = name;
   }
+})();
+
+// Post a comment without reloading the page: submit via fetch and inject the
+// rendered comment inline. Falls back to a normal form POST if JS is disabled.
+(function () {
+  const form = document.querySelector('.comment-form');
+  if (!form) return;
+  const list    = document.getElementById('commentList');
+  const note    = document.getElementById('commentAjaxNote');
+  const countEl = document.getElementById('commentCount');
+  const btn     = form.querySelector('button[type="submit"]');
+  const ta      = form.querySelector('textarea[name="body"]');
+
+  function showNote(ok, msg) {
+    const css  = ok ? 'background:rgba(22,128,60,.12);border:1px solid rgba(22,128,60,.3)'
+                    : 'background:rgba(224,36,94,.1);border:1px solid rgba(224,36,94,.3)';
+    const icon = ok ? '<i class="fa-solid fa-circle-check" style="color:#16803c"></i>'
+                    : '<i class="fa-solid fa-circle-exclamation" style="color:#e0245e"></i>';
+    note.innerHTML = '<div class="comment-note" role="status" style="margin:0 0 16px;padding:12px 14px;'
+      + 'border-radius:8px;font-size:13.5px;color:var(--ink);' + css + '">' + icon + ' ' + msg + '</div>';
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (btn) btn.disabled = true;
+    note.innerHTML = '';
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      if (ok && d.ok) {
+        if (d.html) {
+          const empty = document.getElementById('commentEmpty');
+          if (empty) empty.remove();
+          list.insertAdjacentHTML('beforeend', d.html);
+          const added = list.lastElementChild;
+          if (added) added.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (typeof d.count !== 'undefined' && countEl) countEl.textContent = d.count;
+        if (ta) ta.value = '';
+        // No success banner — the comment appearing in the list is the confirmation.
+      } else {
+        showNote(false, (d && d.message) || 'Something went wrong. Please try again.');
+      }
+    })
+    .catch(() => showNote(false, "Couldn't post your comment. Please try again."))
+    .finally(() => { if (btn) btn.disabled = false; });
+  });
+})();
+
+// Comment-gate (subscribe-to-comment) without a reload: post via fetch and show
+// the result inline. Returning verified subscribers can sign in with email only.
+(function () {
+  const form = document.getElementById('commentGateForm');
+  if (!form) return;
+  const note = document.getElementById('gateNote');
+  const btn  = form.querySelector('button[type="submit"]');
+
+  function showNote(ok, msg) {
+    if (!note) return;
+    note.style.display = 'block';
+    note.style.background = ok ? 'rgba(22,128,60,.14)' : 'rgba(224,36,94,.12)';
+    note.style.border = '1px solid ' + (ok ? 'rgba(22,128,60,.4)' : 'rgba(224,36,94,.4)');
+    note.style.color = 'var(--ink)';
+    note.textContent = msg;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (btn) btn.disabled = true;
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })).catch(() => ({ ok: r.ok, d: {} })))
+    .then(({ ok, d }) => {
+      showNote(ok && d.ok, d.message || (ok ? 'Check your inbox to continue.' : 'Something went wrong. Please try again.'));
+    })
+    .catch(() => showNote(false, 'Something went wrong. Please try again.'))
+    .finally(() => { if (btn) btn.disabled = false; });
+  });
 })();
 
 const fontSizes = ['16px','18px','20px'];

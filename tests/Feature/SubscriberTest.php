@@ -46,12 +46,30 @@ class SubscriberTest extends TestCase
         Mail::assertNothingQueued();
     }
 
+    public function test_subscribe_accepts_the_modal_source(): void
+    {
+        Mail::fake();
+
+        // 'modal' is the source the Daily Digest dialog sends — it must validate,
+        // or the modal 422s and the user sees a generic "something went wrong".
+        $this->postJson('/subscribe', ['name' => 'Modal Fan', 'email' => 'modal@example.com', 'source' => 'modal'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertSame('modal', Subscriber::where('email', 'modal@example.com')->value('source'));
+        Mail::assertQueued(CommenterConfirmation::class);
+    }
+
     public function test_already_verified_subscriber_is_not_re_emailed(): void
     {
         Mail::fake();
         Subscriber::create(['email' => 'done@example.com', 'name' => 'Done', 'verified_at' => now(), 'created_at' => now()]);
 
-        $this->postJson('/subscribe', ['name' => 'Done', 'email' => 'done@example.com'])->assertOk();
+        // Re-subscribing (e.g. via the modal after "not you?") gets a friendly
+        // message, not a re-send and not a generic error.
+        $this->postJson('/subscribe', ['name' => 'Done', 'email' => 'done@example.com', 'source' => 'modal'])
+            ->assertOk()
+            ->assertJsonFragment(['message' => "✅ You're already subscribed!"]);
 
         Mail::assertNothingQueued();
     }

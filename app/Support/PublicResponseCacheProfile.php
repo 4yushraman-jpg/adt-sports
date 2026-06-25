@@ -40,6 +40,15 @@ class PublicResponseCacheProfile implements CacheProfile
             return false;
         }
 
+        // The ?comment=… landing pages reflect a just-now action — and, under
+        // post-moderation, the freshly-posted comment itself. Caching them (a
+        // separate cache key per query string) would let the SECOND commenter
+        // land on the FIRST commenter's cached copy, missing their own comment.
+        // Always render these live; the bare article URL stays cached + busted.
+        if ($request->has('comment')) {
+            return false;
+        }
+
         return true;
     }
 
